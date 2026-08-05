@@ -1,11 +1,11 @@
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:isar/isar.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import '../../../../core/enums/app_role.dart';
 import '../../../../core/utils/app_constants.dart';
-import '../../../../core/database/isar_database_service.dart';
-import '../../../../core/database/isar_models.dart';
+import '../../../../core/database/hive_database_service.dart';
+import '../../../../core/database/hive_models.dart';
 import '../models/user_model.dart';
 
 abstract class AuthLocalDataSource {
@@ -24,12 +24,9 @@ abstract class AuthLocalDataSource {
 }
 
 class AuthLocalDataSourceImpl implements AuthLocalDataSource {
-  Isar? _db;
-
-  Future<Isar> get db async {
-    if (_db != null) return _db!;
-    _db = await IsarDatabaseService.db;
-    return _db!;
+  @override
+  Future<void> init() async {
+    await HiveDatabaseService.initDb();
   }
 
   String hashPassword(String pwd) {
@@ -38,31 +35,24 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
   }
 
   @override
-  Future<void> init() async {
-    await db;
-  }
-
-  @override
   Future<UserModel?> getCurrentUser() async {
     final prefs = await SharedPreferences.getInstance();
     final userId = prefs.getString(AppConstants.userIdKey);
     if (userId == null) return null;
 
-    // Check remember me & session expiration
     final rememberMe = prefs.getBool(AppConstants.rememberMeKey) ?? false;
     final timestamp = prefs.getInt('session_timestamp');
     if (!rememberMe && timestamp != null) {
       final diff = DateTime.now().millisecondsSinceEpoch - timestamp;
-      if (diff > 7200000) { // 2 hours expiration
+      if (diff > 7200000) { 
         await clearSession();
         return null;
       }
-      // Update/slide the session time
       await prefs.setInt('session_timestamp', DateTime.now().millisecondsSinceEpoch);
     }
     
-    final database = await db;
-    final raw = await database.userIsars.filter().userIdEqualTo(userId).findFirst();
+    final box = Hive.box<UserHive>('users');
+    final raw = box.get(userId);
     if (raw == null) return null;
     return UserModel(
       id: raw.userId,
@@ -84,10 +74,8 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
     await prefs.setBool(AppConstants.rememberMeKey, rememberMe);
     await prefs.setInt('session_timestamp', DateTime.now().millisecondsSinceEpoch);
     
-    final database = await db;
-    final existing = await database.userIsars.filter().userIdEqualTo(user.id).findFirst();
-    await database.writeTxn(() async {
-      final isarUser = (existing ?? UserIsar())
+    final box = Hive.box<UserHive>('users');
+    final hiveUser = UserHive()
         ..userId = user.id
         ..name = user.name
         ..username = user.username
@@ -96,8 +84,7 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
         ..email = user.email
         ..phone = user.phone
         ..isActive = user.isActive;
-      await database.userIsars.put(isarUser);
-    });
+    await box.put(user.id, hiveUser);
   }
 
   @override
@@ -111,48 +98,39 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
 
   @override
   Future<void> updateUserName(String userId, String newName) async {
-    final database = await db;
-    final raw = await database.userIsars.filter().userIdEqualTo(userId).findFirst();
+    final box = Hive.box<UserHive>('users');
+    final raw = box.get(userId);
     if (raw == null) throw Exception('User tidak ditemukan');
-    await database.writeTxn(() async {
-      raw.name = newName.trim();
-      await database.userIsars.put(raw);
-    });
+    raw.name = newName.trim();
+    await raw.save();
   }
 
   @override
   Future<void> changePassword(String userId, String currentPassword, String newPassword) async {
-    final database = await db;
-    final raw = await database.userIsars.filter().userIdEqualTo(userId).findFirst();
+    final box = Hive.box<UserHive>('users');
+    final raw = box.get(userId);
     if (raw == null) throw Exception('User tidak ditemukan');
     final hashedCurrent = hashPassword(currentPassword);
-    // Accept plain-text fallback for legacy stored passwords
     if (raw.password != hashedCurrent && raw.password != currentPassword) {
       throw Exception('Password saat ini salah');
     }
-    final hashedNew = hashPassword(newPassword);
-    await database.writeTxn(() async {
-      raw.password = hashedNew;
-      await database.userIsars.put(raw);
-    });
+    raw.password = hashPassword(newPassword);
+    await raw.save();
   }
 
   @override
   Future<UserModel?> login(String username, String password) async {
-    final database = await db;
+    final box = Hive.box<UserHive>('users');
     final hashedPassword = hashPassword(password);
     
-    final raw = await database.userIsars.filter()
-        .usernameEqualTo(username, caseSensitive: false)
-        .findFirst();
+    final rawMatches = box.values.where((u) => u.username.toLowerCase() == username.toLowerCase());
         
-    if (raw == null) {
+    if (rawMatches.isEmpty) {
       throw Exception('Username tidak ditemukan');
     }
     
-    print('DEBUG LOGIN: username=$username, typed=$password, hashed=$hashedPassword, db_password=${raw.password}');
+    final raw = rawMatches.first;
     
-    // Check password (allows hashed match, or plain-text fallback for existing DB contents)
     if (raw.password != hashedPassword && raw.password != password) {
       throw Exception('Password salah');
     }
@@ -174,14 +152,12 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
   }
 
   @override
-  Future<void> seedUsers() async {
-    // Handled in IsarDatabaseService
-  }
+  Future<void> seedUsers() async {}
 
   @override
   Future<List<UserModel>> getAllUsers() async {
-    final database = await db;
-    final rawList = await database.userIsars.where().findAll();
+    final box = Hive.box<UserHive>('users');
+    final rawList = box.values.toList();
     return rawList.map((raw) => UserModel(
       id: raw.userId,
       name: raw.name,
@@ -196,50 +172,44 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
 
   @override
   Future<void> addUser(UserModel user) async {
-    final database = await db;
-    final existing = await database.userIsars.filter().userIdEqualTo(user.id).findFirst();
+    final box = Hive.box<UserHive>('users');
+    final existing = box.get(user.id);
     if (existing != null) throw Exception('User ID sudah ada.');
-    final usernameCheck = await database.userIsars.filter()
-        .usernameEqualTo(user.username, caseSensitive: false).findFirst();
-    if (usernameCheck != null) throw Exception('Username sudah digunakan.');
-    await database.writeTxn(() async {
-      final isarUser = UserIsar()
-        ..userId = user.id
-        ..name = user.name
-        ..username = user.username
-        ..password = hashPassword(user.password)
-        ..role = user.role.name
-        ..email = user.email
-        ..phone = user.phone
-        ..isActive = user.isActive;
-      await database.userIsars.put(isarUser);
-    });
+    final usernameCheck = box.values.where((u) => u.username.toLowerCase() == user.username.toLowerCase());
+    if (usernameCheck.isNotEmpty) throw Exception('Username sudah digunakan.');
+    
+    final hiveUser = UserHive()
+      ..userId = user.id
+      ..name = user.name
+      ..username = user.username
+      ..password = hashPassword(user.password)
+      ..role = user.role.name
+      ..email = user.email
+      ..phone = user.phone
+      ..isActive = user.isActive;
+    await box.put(user.id, hiveUser);
   }
 
   @override
   Future<void> updateUser(UserModel user) async {
-    final database = await db;
-    final raw = await database.userIsars.filter().userIdEqualTo(user.id).findFirst();
+    final box = Hive.box<UserHive>('users');
+    final raw = box.get(user.id);
     if (raw == null) throw Exception('User tidak ditemukan');
-    await database.writeTxn(() async {
-      raw
-        ..name = user.name
-        ..role = user.role.name
-        ..email = user.email
-        ..phone = user.phone
-        ..isActive = user.isActive;
-      await database.userIsars.put(raw);
-    });
+    raw
+      ..name = user.name
+      ..role = user.role.name
+      ..email = user.email
+      ..phone = user.phone
+      ..isActive = user.isActive;
+    await raw.save();
   }
 
   @override
   Future<void> resetUserPassword(String userId, String newPassword) async {
-    final database = await db;
-    final raw = await database.userIsars.filter().userIdEqualTo(userId).findFirst();
+    final box = Hive.box<UserHive>('users');
+    final raw = box.get(userId);
     if (raw == null) throw Exception('User tidak ditemukan');
-    await database.writeTxn(() async {
-      raw.password = hashPassword(newPassword);
-      await database.userIsars.put(raw);
-    });
+    raw.password = hashPassword(newPassword);
+    await raw.save();
   }
 }

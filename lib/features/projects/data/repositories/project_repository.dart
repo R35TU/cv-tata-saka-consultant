@@ -1,4 +1,4 @@
-import '../../../../core/database/isar_models.dart';
+import '../../../../core/database/hive_models.dart';
 import '../datasources/local_project_data_source.dart';
 import '../models/project_model.dart';
 
@@ -15,7 +15,7 @@ abstract class ProjectRepository {
   Future<void> addProject(ProjectModel project);
   Future<void> updateProject(ProjectModel project);
   Future<void> deleteProject(String id);
-  Future<List<ProjectMemberIsar>> getProjectMembers(String projectId);
+  Future<List<ProjectMemberHive>> getProjectMembers(String projectId);
   Future<void> addProjectMember(String projectId, String userId, String role);
   Future<void> removeProjectMember(String projectId, String userId);
 }
@@ -56,7 +56,7 @@ class ProjectRepositoryImpl implements ProjectRepository {
   Future<void> deleteProject(String id) => localDataSource.deleteProject(id);
 
   @override
-  Future<List<ProjectMemberIsar>> getProjectMembers(String projectId) =>
+  Future<List<ProjectMemberHive>> getProjectMembers(String projectId) =>
       localDataSource.getProjectMembers(projectId);
 
   @override

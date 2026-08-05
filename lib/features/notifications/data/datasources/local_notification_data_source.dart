@@ -1,6 +1,6 @@
-import 'package:isar/isar.dart';
-import '../../../../core/database/isar_database_service.dart';
-import '../../../../core/database/isar_models.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import '../../../../core/database/hive_database_service.dart';
+import '../../../../core/database/hive_models.dart';
 import '../models/notification_model.dart';
 
 abstract class NotificationLocalDataSource {
@@ -12,23 +12,15 @@ abstract class NotificationLocalDataSource {
 }
 
 class NotificationLocalDataSourceImpl implements NotificationLocalDataSource {
-  Isar? _db;
-
-  Future<Isar> get db async {
-    if (_db != null) return _db!;
-    _db = await IsarDatabaseService.db;
-    return _db!;
-  }
-
   @override
   Future<void> init() async {
-    await db;
+    await HiveDatabaseService.initDb();
   }
 
   @override
   Future<List<NotificationModel>> getNotifications() async {
-    final database = await db;
-    final list = await database.notificationIsars.where().findAll();
+    final box = Hive.box<NotificationHive>('notifications');
+    final list = box.values.toList();
     return list.map((raw) => NotificationModel(
       id: raw.notificationId,
       title: raw.title,
@@ -42,33 +34,27 @@ class NotificationLocalDataSourceImpl implements NotificationLocalDataSource {
 
   @override
   Future<void> addNotification(NotificationModel item) async {
-    final database = await db;
-    await database.writeTxn(() async {
-      final isarNotif = NotificationIsar()
-        ..notificationId = item.id
-        ..title = item.title
-        ..message = item.message
-        ..type = item.type
-        ..isRead = item.isRead
-        ..createdAt = item.createdAt;
-      await database.notificationIsars.put(isarNotif);
-    });
+    final box = Hive.box<NotificationHive>('notifications');
+    final hiveNotif = NotificationHive()
+      ..notificationId = item.id
+      ..title = item.title
+      ..message = item.message
+      ..type = item.type
+      ..isRead = item.isRead
+      ..createdAt = item.createdAt;
+    await box.put(item.id, hiveNotif);
   }
 
   @override
   Future<void> markAsRead(String id) async {
-    final database = await db;
-    final existing = await database.notificationIsars.filter().notificationIdEqualTo(id).findFirst();
+    final box = Hive.box<NotificationHive>('notifications');
+    final existing = box.get(id);
     if (existing != null) {
-      await database.writeTxn(() async {
-        existing.isRead = true;
-        await database.notificationIsars.put(existing);
-      });
+      existing.isRead = true;
+      await existing.save();
     }
   }
 
   @override
-  Future<void> seedNotifications() async {
-    // Already handled in IsarDatabaseService
-  }
+  Future<void> seedNotifications() async {}
 }

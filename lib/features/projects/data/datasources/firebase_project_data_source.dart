@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../../../core/database/isar_models.dart';
+import '../../../../core/database/hive_models.dart';
 import '../models/project_model.dart';
 import 'local_project_data_source.dart';
 
@@ -63,13 +63,13 @@ class ProjectFirebaseDataSourceImpl implements ProjectLocalDataSource {
   }
 
   @override
-  Future<List<ProjectMemberIsar>> getProjectMembers(String projectId) async {
+  Future<List<ProjectMemberHive>> getProjectMembers(String projectId) async {
     final snapshot = await _firestore.collection('project_members')
         .where('projectId', isEqualTo: projectId)
         .get();
     return snapshot.docs.map((doc) {
       final data = doc.data();
-      return ProjectMemberIsar()
+      return ProjectMemberHive()
         ..projectId = data['projectId']
         ..userId = data['userId']
         ..role = data['role'];

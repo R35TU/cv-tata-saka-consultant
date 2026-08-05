@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:isar/isar.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
-import '../../../../core/database/isar_database_service.dart';
-import '../../../../core/database/isar_models.dart';
+import '../../../../core/database/hive_database_service.dart';
+import '../../../../core/database/hive_models.dart';
 import '../../../../core/enums/app_role.dart';
 import '../data/models/user_model.dart';
 import 'auth_controller.dart';
@@ -13,8 +13,9 @@ import '../../projects/presentation/project_controller.dart';
 final allUsersListProvider = FutureProvider.autoDispose<List<UserModel>>((
   ref,
 ) async {
-  final isar = await IsarDatabaseService.db;
-  final rawList = await isar.userIsars.where().findAll();
+  await HiveDatabaseService.initDb();
+  final box = Hive.box<UserHive>('users');
+  final rawList = box.values.toList();
   return rawList
       .map(
         (u) => UserModel(
@@ -614,12 +615,11 @@ class _AccountManagementScreenState
 
   // ── Show Project Relations ────────────────────────────────────────────────
   void _showProjectRelationsDialog(UserModel user) async {
-    final isar = await IsarDatabaseService.db;
-    final members = await isar.projectMemberIsars
-        .filter()
-        .userIdEqualTo(user.id)
-        .findAll();
-    final allProjects = await isar.projectIsars.where().findAll();
+    await HiveDatabaseService.initDb();
+    final memberBox = Hive.box<ProjectMemberHive>('projectMembers');
+    final members = memberBox.values.where((m) => m.userId == user.id).toList();
+    final projectBox = Hive.box<ProjectHive>('projects');
+    final allProjects = projectBox.values.toList();
 
     if (!mounted) return;
 

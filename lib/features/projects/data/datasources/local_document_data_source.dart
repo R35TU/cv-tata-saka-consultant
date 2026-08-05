@@ -1,6 +1,6 @@
-import 'package:isar/isar.dart';
-import '../../../../core/database/isar_database_service.dart';
-import '../../../../core/database/isar_models.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import '../../../../core/database/hive_database_service.dart';
+import '../../../../core/database/hive_models.dart';
 import '../models/document_model.dart';
 
 abstract class DocumentLocalDataSource {
@@ -13,23 +13,15 @@ abstract class DocumentLocalDataSource {
 }
 
 class DocumentLocalDataSourceImpl implements DocumentLocalDataSource {
-  Isar? _db;
-
-  Future<Isar> get db async {
-    if (_db != null) return _db!;
-    _db = await IsarDatabaseService.db;
-    return _db!;
-  }
-
   @override
   Future<void> init() async {
-    await db;
+    await HiveDatabaseService.initDb();
   }
 
   @override
   Future<List<DocumentModel>> getDocuments(String projectId) async {
-    final database = await db;
-    final list = await database.documentIsars.filter().projectIdEqualTo(projectId).findAll();
+    final box = Hive.box<DocumentHive>('documents');
+    final list = box.values.where((d) => d.projectId == projectId).toList();
     return list.map((raw) => DocumentModel(
       id: raw.documentId,
       projectId: raw.projectId,
@@ -54,72 +46,40 @@ class DocumentLocalDataSourceImpl implements DocumentLocalDataSource {
 
   @override
   Future<void> addDocument(DocumentModel document) async {
-    final database = await db;
-    await database.writeTxn(() async {
-      final isarDoc = DocumentIsar()
-        ..documentId = document.id
-        ..projectId = document.projectId
-        ..folderName = document.folderName
-        ..name = document.name
-        ..fileUrl = document.fileUrl
-        ..fileSize = document.fileSize
-        ..uploadedBy = document.uploadedBy
-        ..uploadedAt = document.uploadedAt
-        ..version = document.version
-        ..versions = document.versions.map((v) => DocumentVersionIsar()
-          ..versionId = v.id
-          ..name = v.name
-          ..fileUrl = v.fileUrl
-          ..fileSize = v.fileSize
-          ..uploadedBy = v.uploadedBy
-          ..uploadedAt = v.uploadedAt
-          ..version = v.version
-        ).toList();
-      await database.documentIsars.put(isarDoc);
-    });
+    final box = Hive.box<DocumentHive>('documents');
+    final hiveDoc = DocumentHive()
+      ..documentId = document.id
+      ..projectId = document.projectId
+      ..folderName = document.folderName
+      ..name = document.name
+      ..fileUrl = document.fileUrl
+      ..fileSize = document.fileSize
+      ..uploadedBy = document.uploadedBy
+      ..uploadedAt = document.uploadedAt
+      ..version = document.version
+      ..versions = document.versions.map((v) => DocumentVersionHive()
+        ..versionId = v.id
+        ..name = v.name
+        ..fileUrl = v.fileUrl
+        ..fileSize = v.fileSize
+        ..uploadedBy = v.uploadedBy
+        ..uploadedAt = v.uploadedAt
+        ..version = v.version
+      ).toList();
+    await box.put(document.id, hiveDoc);
   }
 
   @override
   Future<void> updateDocument(DocumentModel document) async {
-    final database = await db;
-    final existing = await database.documentIsars.filter().documentIdEqualTo(document.id).findFirst();
-    await database.writeTxn(() async {
-      final isarDoc = (existing ?? DocumentIsar())
-        ..documentId = document.id
-        ..projectId = document.projectId
-        ..folderName = document.folderName
-        ..name = document.name
-        ..fileUrl = document.fileUrl
-        ..fileSize = document.fileSize
-        ..uploadedBy = document.uploadedBy
-        ..uploadedAt = document.uploadedAt
-        ..version = document.version
-        ..versions = document.versions.map((v) => DocumentVersionIsar()
-          ..versionId = v.id
-          ..name = v.name
-          ..fileUrl = v.fileUrl
-          ..fileSize = v.fileSize
-          ..uploadedBy = v.uploadedBy
-          ..uploadedAt = v.uploadedAt
-          ..version = v.version
-        ).toList();
-      await database.documentIsars.put(isarDoc);
-    });
+    await addDocument(document);
   }
 
   @override
   Future<void> deleteDocument(String id) async {
-    final database = await db;
-    final existing = await database.documentIsars.filter().documentIdEqualTo(id).findFirst();
-    if (existing != null) {
-      await database.writeTxn(() async {
-        await database.documentIsars.delete(existing.id);
-      });
-    }
+    final box = Hive.box<DocumentHive>('documents');
+    await box.delete(id);
   }
 
   @override
-  Future<void> seedDocuments() async {
-    // Already handled in IsarDatabaseService
-  }
+  Future<void> seedDocuments() async {}
 }

@@ -1,71 +1,82 @@
-import 'package:isar/isar.dart';
-import 'package:path_provider/path_provider.dart';
-import 'isar_models.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'hive_models.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 
-class IsarDatabaseService {
-  static Isar? _instance;
+class HiveDatabaseService {
+  static bool _isInitialized = false;
 
-  static Future<Isar> get db async {
-    if (_instance != null) return _instance!;
-    _instance = await _initDb();
-    return _instance!;
-  }
+  static Future<void> initDb() async {
+    if (_isInitialized) return;
+    await Hive.initFlutter();
+    
+    if (!Hive.isAdapterRegistered(0)) {
+      Hive.registerAdapter(UserHiveAdapter());
+      Hive.registerAdapter(ProjectHiveAdapter());
+      Hive.registerAdapter(ProjectMemberHiveAdapter());
+      Hive.registerAdapter(ProjectProgressHiveAdapter());
+      Hive.registerAdapter(DocumentVersionHiveAdapter());
+      Hive.registerAdapter(DocumentHiveAdapter());
+      Hive.registerAdapter(ReportHistoryHiveAdapter());
+      Hive.registerAdapter(ContractorReportHiveAdapter());
+      Hive.registerAdapter(SupervisorReportHiveAdapter());
+      Hive.registerAdapter(TimelineHiveAdapter());
+      Hive.registerAdapter(NotificationHiveAdapter());
+      Hive.registerAdapter(PhotoDocumentationHiveAdapter());
+      Hive.registerAdapter(ActivityHistoryHiveAdapter());
+    }
 
-  static Future<Isar> _initDb() async {
-    final existing = Isar.getInstance();
-    final isar = existing ?? await Isar.open(
-      [
-        UserIsarSchema,
-        ProjectIsarSchema,
-        ProjectMemberIsarSchema,
-        ProjectProgressIsarSchema,
-        DocumentIsarSchema,
-        ContractorReportIsarSchema,
-        SupervisorReportIsarSchema,
-        TimelineIsarSchema,
-        NotificationIsarSchema,
-        PhotoDocumentationIsarSchema,
-        ActivityHistoryIsarSchema,
-      ],
-      directory: (await getApplicationDocumentsDirectory()).path,
-    );
+    final userBox = await Hive.openBox<UserHive>('users');
+    await Hive.openBox<ProjectHive>('projects');
+    await Hive.openBox<ProjectMemberHive>('projectMembers');
+    await Hive.openBox<ProjectProgressHive>('projectProgress');
+    await Hive.openBox<DocumentHive>('documents');
+    await Hive.openBox<ContractorReportHive>('contractorReports');
+    await Hive.openBox<SupervisorReportHive>('supervisorReports');
+    await Hive.openBox<TimelineHive>('timelines');
+    await Hive.openBox<NotificationHive>('notifications');
+    await Hive.openBox<PhotoDocumentationHive>('photoDocumentation');
+    await Hive.openBox<ActivityHistoryHive>('activityHistory');
 
-    // Seed if empty, if 'konsultan' user is missing, or if its password is out of sync
-    final userCount = await isar.userIsars.count();
-    final hasKonsultan = await isar.userIsars.filter().usernameEqualTo('konsultan').findFirst();
+    final userCount = userBox.length;
+    final hasKonsultan = userBox.values.any((u) => u.username == 'konsultan');
     final String correctHash = 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
     
-    bool needsSeeding = userCount == 0 || hasKonsultan == null;
-    if (hasKonsultan != null && hasKonsultan.password != correctHash && hasKonsultan.password != '123456') {
-      needsSeeding = true;
+    bool needsSeeding = userCount == 0 || !hasKonsultan;
+    if (hasKonsultan) {
+      final kons = userBox.values.firstWhere((u) => u.username == 'konsultan');
+      if (kons.password != correctHash && kons.password != '123456') {
+        needsSeeding = true;
+      }
     }
     
     if (needsSeeding) {
-      await isar.writeTxn(() async {
-        await isar.userIsars.clear();
-        await isar.projectIsars.clear();
-        await isar.projectMemberIsars.clear();
-        await isar.projectProgressIsars.clear();
-        await isar.documentIsars.clear();
-        await isar.contractorReportIsars.clear();
-        await isar.supervisorReportIsars.clear();
-        await isar.timelineIsars.clear();
-        await isar.notificationIsars.clear();
-        await isar.photoDocumentationIsars.clear();
-        await isar.activityHistoryIsars.clear();
-      });
+      await _seedData();
+    }
+    _isInitialized = true;
+  }
 
-      await isar.writeTxn(() async {
-        String hashPwd(String p) {
+  static Future<void> _seedData() async {
+    await Hive.box<UserHive>('users').clear();
+    await Hive.box<ProjectHive>('projects').clear();
+    await Hive.box<ProjectMemberHive>('projectMembers').clear();
+    await Hive.box<ProjectProgressHive>('projectProgress').clear();
+    await Hive.box<DocumentHive>('documents').clear();
+    await Hive.box<ContractorReportHive>('contractorReports').clear();
+    await Hive.box<SupervisorReportHive>('supervisorReports').clear();
+    await Hive.box<TimelineHive>('timelines').clear();
+    await Hive.box<NotificationHive>('notifications').clear();
+    await Hive.box<PhotoDocumentationHive>('photoDocumentation').clear();
+    await Hive.box<ActivityHistoryHive>('activityHistory').clear();
+
+String hashPwd(String p) {
           final bytes = utf8.encode(p);
           return sha256.convert(bytes).toString();
         }
 
         // Users
         final users = [
-          UserIsar()
+          UserHive()
             ..userId = 'user-1'
             ..name = 'Aradea Kingdom'
             ..username = 'konsultan'
@@ -74,7 +85,7 @@ class IsarDatabaseService {
             ..email = 'konsultan@tatasaka.com'
             ..phone = '081234567890'
             ..isActive = true,
-          UserIsar()
+          UserHive()
             ..userId = 'user-2'
             ..name = 'Budi Kontraktor'
             ..username = 'kontraktor'
@@ -83,7 +94,7 @@ class IsarDatabaseService {
             ..email = 'budi@kontraktor.com'
             ..phone = '081234567891'
             ..isActive = true,
-          UserIsar()
+          UserHive()
             ..userId = 'user-3'
             ..name = 'Dinas PUPR'
             ..username = 'dinas'
@@ -92,7 +103,7 @@ class IsarDatabaseService {
             ..email = 'dinas@pupr.com'
             ..phone = '081234567892'
             ..isActive = true,
-          UserIsar()
+          UserHive()
             ..userId = 'user-4'
             ..name = 'Rina Eksternal'
             ..username = 'eksternal'
@@ -101,7 +112,7 @@ class IsarDatabaseService {
             ..email = 'rina@external.com'
             ..phone = '081234567893'
             ..isActive = true,
-          UserIsar()
+          UserHive()
             ..userId = 'user-5'
             ..name = 'Koko Kontraktor'
             ..username = 'kontraktor2'
@@ -111,11 +122,11 @@ class IsarDatabaseService {
             ..phone = '081234567894'
             ..isActive = true,
         ];
-        await isar.userIsars.putAll(users);
+        for (var i in users) { Hive.box<UserHive>('users').put(i.userId, i); }
 
         // Projects
         final projects = [
-          ProjectIsar()
+          ProjectHive()
             ..projectId = 'project-1'
             ..name = 'Pembangunan Jembatan'
             ..location = 'Purwokerto'
@@ -132,7 +143,7 @@ class IsarDatabaseService {
             ..ownerDetail = 'Pemerintah Kabupaten Banyumas'
             ..fundingSource = 'APBD 2026'
             ..isArchived = false,
-          ProjectIsar()
+          ProjectHive()
             ..projectId = 'project-2'
             ..name = 'Gor Hebat Mantap'
             ..location = 'Purbalingga'
@@ -149,7 +160,7 @@ class IsarDatabaseService {
             ..ownerDetail = 'Pemerintah Kabupaten Purbalingga'
             ..fundingSource = 'APBD 2024'
             ..isArchived = false,
-          ProjectIsar()
+          ProjectHive()
             ..projectId = 'project-3'
             ..name = 'Pengecoran Jalan Desa'
             ..location = 'Kebumen'
@@ -167,51 +178,51 @@ class IsarDatabaseService {
             ..fundingSource = 'APBD 2025'
             ..isArchived = false,
         ];
-        await isar.projectIsars.putAll(projects);
+        for (var i in projects) { Hive.box<ProjectHive>('projects').put(i.projectId, i); }
 
         // Project Members
         // project-1: Budi Kontraktor (Pelaksana), Aradea/Konsultan (Pengawas), Dinas PUPR (Pengawas Dinas)
         // project-2: Budi Kontraktor (Pelaksana), Aradea/Konsultan (Pengawas)
         // project-3: Koko Kontraktor (Pelaksana), Konsultan (Pengawas), Dinas PUPR (Pengawas Dinas)
         final members = [
-          ProjectMemberIsar()
+          ProjectMemberHive()
             ..projectId = 'project-1'
             ..userId = 'user-1'   // Aradea - Konsultan
             ..role = 'Pengawas',
-          ProjectMemberIsar()
+          ProjectMemberHive()
             ..projectId = 'project-1'
             ..userId = 'user-2'   // Budi - Kontraktor
             ..role = 'Pelaksana',
-          ProjectMemberIsar()
+          ProjectMemberHive()
             ..projectId = 'project-1'
             ..userId = 'user-3'   // Dinas PUPR
             ..role = 'Pengawas Dinas',
-          ProjectMemberIsar()
+          ProjectMemberHive()
             ..projectId = 'project-2'
             ..userId = 'user-1'   // Aradea - Konsultan
             ..role = 'Pengawas',
-          ProjectMemberIsar()
+          ProjectMemberHive()
             ..projectId = 'project-2'
             ..userId = 'user-2'   // Budi - Kontraktor
             ..role = 'Pelaksana',
-          ProjectMemberIsar()
+          ProjectMemberHive()
             ..projectId = 'project-3'
             ..userId = 'user-1'   // Aradea - Konsultan
             ..role = 'Pengawas',
-          ProjectMemberIsar()
+          ProjectMemberHive()
             ..projectId = 'project-3'
             ..userId = 'user-5'   // Koko - Kontraktor
             ..role = 'Pelaksana',
-          ProjectMemberIsar()
+          ProjectMemberHive()
             ..projectId = 'project-3'
             ..userId = 'user-3'   // Dinas PUPR
             ..role = 'Pengawas Dinas',
         ];
-        await isar.projectMemberIsars.putAll(members);
+        for (var i in members) { Hive.box<ProjectMemberHive>('projectMembers').add(i); }
 
         // Documents
         final documents = [
-          DocumentIsar()
+          DocumentHive()
             ..documentId = 'doc-1-1'
             ..projectId = 'project-1'
             ..folderName = 'Dokumen Pra Kontrak'
@@ -222,7 +233,7 @@ class IsarDatabaseService {
             ..uploadedAt = '2026-01-02 11:30'
             ..version = 1
             ..versions = [
-              DocumentVersionIsar()
+              DocumentVersionHive()
                 ..versionId = 'ver-1-1-1'
                 ..name = 'LoremIpsum_draft.pdf'
                 ..fileUrl = '/documents/lorem_ipsum_draft.pdf'
@@ -231,7 +242,7 @@ class IsarDatabaseService {
                 ..uploadedAt = '2026-01-02 11:00'
                 ..version = 1
             ],
-          DocumentIsar()
+          DocumentHive()
             ..documentId = 'doc-1-2'
             ..projectId = 'project-1'
             ..folderName = 'Dokumen Pra Kontrak'
@@ -242,7 +253,7 @@ class IsarDatabaseService {
             ..uploadedAt = '2026-01-02 11:32'
             ..version = 1
             ..versions = [],
-          DocumentIsar()
+          DocumentHive()
             ..documentId = 'doc-1-4'
             ..projectId = 'project-1'
             ..folderName = 'Dokumen Kontrak'
@@ -253,7 +264,7 @@ class IsarDatabaseService {
             ..uploadedAt = '2026-01-04 11:30'
             ..version = 1
             ..versions = [],
-          DocumentIsar()
+          DocumentHive()
             ..documentId = 'doc-1-6'
             ..projectId = 'project-1'
             ..folderName = 'PCM'
@@ -264,7 +275,7 @@ class IsarDatabaseService {
             ..uploadedAt = '2026-01-05 11:35'
             ..version = 1
             ..versions = [],
-          DocumentIsar()
+          DocumentHive()
             ..documentId = 'doc-1-7'
             ..projectId = 'project-1'
             ..folderName = 'Adendum'
@@ -275,7 +286,7 @@ class IsarDatabaseService {
             ..uploadedAt = '2026-01-05 11:40'
             ..version = 1
             ..versions = [],
-          DocumentIsar()
+          DocumentHive()
             ..documentId = 'doc-3-1'
             ..projectId = 'project-3'
             ..folderName = 'Dokumen Kontrak'
@@ -287,7 +298,7 @@ class IsarDatabaseService {
             ..version = 1
             ..versions = [],
         ];
-        await isar.documentIsars.putAll(documents);
+        for (var i in documents) { Hive.box<DocumentHive>('documents').put(i.documentId, i); }
 
         // Dynamic relative dates for reports seeder
         final today = DateTime.now();
@@ -298,7 +309,7 @@ class IsarDatabaseService {
 
         // Contractor Reports
         final contractorReports = [
-          ContractorReportIsar()
+          ContractorReportHive()
             ..reportId = 'rep-c-1'
             ..projectId = 'project-1'
             ..date = twoDaysAgoStr
@@ -320,18 +331,18 @@ class IsarDatabaseService {
             ..verificationDate = '$twoDaysAgoStr 17:00'
             ..revisionNotes = ''
             ..changeHistory = [
-              ReportHistoryIsar()
+              ReportHistoryHive()
                 ..date = '$twoDaysAgoStr 09:15'
                 ..user = 'Budi Kontraktor'
                 ..action = 'Dibuat'
                 ..details = 'Laporan dikirim pertama kali.',
-              ReportHistoryIsar()
+              ReportHistoryHive()
                 ..date = '$twoDaysAgoStr 17:00'
                 ..user = 'Aradea Kingdom'
                 ..action = 'DISETUJUI'
                 ..details = 'Laporan disetujui tanpa revisi.'
             ],
-          ContractorReportIsar()
+          ContractorReportHive()
             ..reportId = 'rep-c-2'
             ..projectId = 'project-1'
             ..date = todayStr
@@ -353,13 +364,13 @@ class IsarDatabaseService {
             ..verificationDate = ''
             ..revisionNotes = ''
             ..changeHistory = [
-              ReportHistoryIsar()
+              ReportHistoryHive()
                 ..date = '$todayStr 16:30'
                 ..user = 'Budi Kontraktor'
                 ..action = 'Dibuat'
                 ..details = 'Menunggu peninjauan pengawas.'
             ],
-          ContractorReportIsar()
+          ContractorReportHive()
             ..reportId = 'rep-c-3'
             ..projectId = 'project-3'
             ..date = yesterdayStr
@@ -381,23 +392,23 @@ class IsarDatabaseService {
             ..verificationDate = '$yesterdayStr 16:00'
             ..revisionNotes = 'Spesifikasi material sirtu tidak sesuai standar kontrak, ganti material kelas A!'
             ..changeHistory = [
-              ReportHistoryIsar()
+              ReportHistoryHive()
                 ..date = '$yesterdayStr 14:45'
                 ..user = 'Budi Kontraktor'
                 ..action = 'Dibuat'
                 ..details = 'Laporan terkirim.',
-              ReportHistoryIsar()
+              ReportHistoryHive()
                 ..date = '$yesterdayStr 16:00'
                 ..user = 'Dinas PUPR'
                 ..action = 'DITOLAK'
                 ..details = 'Ditolak karena sirtu tidak sesuai standar.'
             ],
         ];
-        await isar.contractorReportIsars.putAll(contractorReports);
+        for (var i in contractorReports) { Hive.box<ContractorReportHive>('contractorReports').put(i.reportId, i); }
 
         // Supervisor Reports
         final supervisorReports = [
-          SupervisorReportIsar()
+          SupervisorReportHive()
             ..reportId = 'rep-s-1'
             ..projectId = 'project-1'
             ..date = threeDaysAgoStr
@@ -412,7 +423,7 @@ class IsarDatabaseService {
             ..notes = 'Selalu gunakan helm dan rompi K3 di area galian.'
             ..photos = ['https://images.unsplash.com/photo-1545628221-bb35ab299e58?q=80&w=300&auto=format&fit=crop']
             ..attachments = ['instruksi_galian.pdf'],
-          SupervisorReportIsar()
+          SupervisorReportHive()
             ..reportId = 'rep-s-2'
             ..projectId = 'project-1'
             ..date = yesterdayStr
@@ -428,11 +439,11 @@ class IsarDatabaseService {
             ..photos = []
             ..attachments = [],
         ];
-        await isar.supervisorReportIsars.putAll(supervisorReports);
+        for (var i in supervisorReports) { Hive.box<SupervisorReportHive>('supervisorReports').put(i.reportId, i); }
 
         // Timelines
         final timelines = [
-          TimelineIsar()
+          TimelineHive()
             ..timelineId = 'timeline-1'
             ..projectId = 'project-1'
             ..title = 'Project dibuat'
@@ -441,7 +452,7 @@ class IsarDatabaseService {
             ..role = 'Konsultan'
             ..icon = 'timeline'
             ..createdAt = '2026-06-28 10:00',
-          TimelineIsar()
+          TimelineHive()
             ..timelineId = 'timeline-2'
             ..projectId = 'project-1'
             ..title = 'Folder Pra Kontrak Dibuat'
@@ -450,7 +461,7 @@ class IsarDatabaseService {
             ..role = 'Konsultan'
             ..icon = 'folder'
             ..createdAt = '2026-06-28 11:30',
-          TimelineIsar()
+          TimelineHive()
             ..timelineId = 'timeline-3'
             ..projectId = 'project-1'
             ..title = 'Laporan dikirim'
@@ -460,25 +471,25 @@ class IsarDatabaseService {
             ..icon = 'report'
             ..createdAt = '2026-06-29 08:00',
         ];
-        await isar.timelineIsars.putAll(timelines);
+        for (var i in timelines) { Hive.box<TimelineHive>('timelines').put(i.timelineId, i); }
 
         // Notifications
         final notifications = [
-          NotificationIsar()
+          NotificationHive()
             ..notificationId = 'notif-1'
             ..title = 'Approval'
             ..message = 'Laporan harian proyek Jembatan STA 13 menunggu verifikasi.'
             ..type = 'Approval'
             ..isRead = false
             ..createdAt = '2026-06-29 09:00',
-          NotificationIsar()
+          NotificationHive()
             ..notificationId = 'notif-2'
             ..title = 'Revisi'
             ..message = 'Laporan aspal jalan desa ditolak oleh pengawas. Perlu revisi sirtu.'
             ..type = 'Revisi'
             ..isRead = false
             ..createdAt = '2026-06-29 08:30',
-          NotificationIsar()
+          NotificationHive()
             ..notificationId = 'notif-3'
             ..title = 'Dokumen Baru'
             ..message = 'Dokumen Adendum_Final.pdf telah diunggah oleh CV. Tata Saka Consultant.'
@@ -486,9 +497,7 @@ class IsarDatabaseService {
             ..isRead = true
             ..createdAt = '2026-06-28 14:00',
         ];
-        await isar.notificationIsars.putAll(notifications);
-      });
-    }
-    return isar;
+        for (var i in notifications) { Hive.box<NotificationHive>('notifications').put(i.notificationId, i); }
+      
   }
 }

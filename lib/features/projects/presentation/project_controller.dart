@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
-import 'package:isar/isar.dart';
-import '../../../core/database/isar_database_service.dart';
-import '../../../core/database/isar_models.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import '../../../core/database/hive_database_service.dart';
+import '../../../core/database/hive_models.dart';
 import '../../../core/enums/app_role.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../reports/presentation/report_controller.dart';
@@ -122,9 +122,10 @@ class ProjectsController extends StateNotifier<AsyncValue<List<ProjectModel>>> {
 // Project Members Provider
 // ─────────────────────────────────────────────────────────────
 
-final projectMembersProvider = FutureProvider.family<List<ProjectMemberIsar>, String>((ref, projectId) async {
-  final isar = await IsarDatabaseService.db;
-  return isar.projectMemberIsars.filter().projectIdEqualTo(projectId).findAll();
+final projectMembersProvider = FutureProvider.family<List<ProjectMemberHive>, String>((ref, projectId) async {
+  await HiveDatabaseService.initDb();
+  final box = Hive.box<ProjectMemberHive>('projectMembers');
+  return box.values.where((m) => m.projectId == projectId).toList();
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -132,8 +133,9 @@ final projectMembersProvider = FutureProvider.family<List<ProjectMemberIsar>, St
 // ─────────────────────────────────────────────────────────────
 
 final allUsersProvider = FutureProvider<List<UserModel>>((ref) async {
-  final isar = await IsarDatabaseService.db;
-  final rawUsers = await isar.userIsars.where().findAll();
+  await HiveDatabaseService.initDb();
+  final box = Hive.box<UserHive>('users');
+  final rawUsers = box.values.toList();
   return rawUsers.map((u) => UserModel(
     id: u.userId,
     name: u.name,
@@ -328,26 +330,29 @@ final dashboardStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async 
   ref.watch(contractorReportsProvider);
   ref.watch(documentsControllerProvider);
 
-  final isar = await IsarDatabaseService.db;
+  await HiveDatabaseService.initDb();
   
-  final totalProjects = await isar.projectIsars.count();
-  final activeProjects = await isar.projectIsars.filter().statusEqualTo('Progres', caseSensitive: false).count();
-  final completedProjects = await isar.projectIsars.filter().statusEqualTo('Selesai', caseSensitive: false).count();
+  final projectsBox = Hive.box<ProjectHive>('projects');
+  final contractorReportsBox = Hive.box<ContractorReportHive>('contractorReports');
+  final supervisorReportsBox = Hive.box<SupervisorReportHive>('supervisorReports');
+  final documentsBox = Hive.box<DocumentHive>('documents');
+  
+  final allProjects = projectsBox.values.toList();
+  final totalProjects = allProjects.length;
+  final activeProjects = allProjects.where((p) => p.status.toLowerCase() == 'progres').length;
+  final completedProjects = allProjects.where((p) => p.status.toLowerCase() == 'selesai').length;
   
   final today = DateTime.now().toString().substring(0, 10);
-  final lateProjects = await isar.projectIsars.filter()
-      .statusEqualTo('Progres', caseSensitive: false)
-      .and()
-      .endDateLessThan(today)
-      .count();
+  final lateProjects = allProjects.where((p) => 
+    p.status.toLowerCase() == 'progres' && p.endDate.compareTo(today) < 0
+  ).length;
 
-  final totalReports = await isar.contractorReportIsars.count() + await isar.supervisorReportIsars.count();
-  final pendingReports = await isar.contractorReportIsars.filter().statusEqualTo('MENUNGGU VERIFIKASI', caseSensitive: false).count();
-  final rejectedReports = await isar.contractorReportIsars.filter().statusEqualTo('DITOLAK', caseSensitive: false).count();
+  final totalReports = contractorReportsBox.length + supervisorReportsBox.length;
+  final pendingReports = contractorReportsBox.values.where((r) => r.status.toLowerCase() == 'menunggu verifikasi').length;
+  final rejectedReports = contractorReportsBox.values.where((r) => r.status.toLowerCase() == 'ditolak').length;
   
-  final totalDocuments = await isar.documentIsars.count();
+  final totalDocuments = documentsBox.length;
   
-  final allProjects = await isar.projectIsars.where().findAll();
   final avgProgress = allProjects.isEmpty 
       ? 0.0 
       : allProjects.map((p) => p.physicalProgress).reduce((a, b) => a + b) / allProjects.length;

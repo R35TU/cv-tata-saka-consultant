@@ -1,6 +1,6 @@
-import 'package:isar/isar.dart';
-import '../../../../core/database/isar_database_service.dart';
-import '../../../../core/database/isar_models.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import '../../../../core/database/hive_database_service.dart';
+import '../../../../core/database/hive_models.dart';
 import '../models/report_model.dart';
 
 abstract class ReportLocalDataSource {
@@ -18,34 +18,26 @@ abstract class ReportLocalDataSource {
 }
 
 class ReportLocalDataSourceImpl implements ReportLocalDataSource {
-  Isar? _db;
-
-  Future<Isar> get db async {
-    if (_db != null) return _db!;
-    _db = await IsarDatabaseService.db;
-    return _db!;
-  }
-
   @override
   Future<void> init() async {
-    await db;
+    await HiveDatabaseService.initDb();
   }
 
   @override
   Future<List<ContractorReportModel>> getContractorReports(String projectId) async {
-    final database = await db;
-    final list = await database.contractorReportIsars.filter().projectIdEqualTo(projectId).findAll();
+    final box = Hive.box<ContractorReportHive>('contractorReports');
+    final list = box.values.where((r) => r.projectId == projectId).toList();
     return _toContractorModels(list);
   }
 
   @override
   Future<List<ContractorReportModel>> getAllContractorReports() async {
-    final database = await db;
-    final list = await database.contractorReportIsars.where().findAll();
+    final box = Hive.box<ContractorReportHive>('contractorReports');
+    final list = box.values.toList();
     return _toContractorModels(list);
   }
 
-  List<ContractorReportModel> _toContractorModels(List<ContractorReportIsar> list) {
+  List<ContractorReportModel> _toContractorModels(List<ContractorReportHive> list) {
     return list.map((raw) => ContractorReportModel(
       id: raw.reportId,
       projectId: raw.projectId,
@@ -78,101 +70,63 @@ class ReportLocalDataSourceImpl implements ReportLocalDataSource {
 
   @override
   Future<void> addContractorReport(ContractorReportModel report) async {
-    final database = await db;
-    await database.writeTxn(() async {
-      final isarReport = ContractorReportIsar()
-        ..reportId = report.id
-        ..projectId = report.projectId
-        ..date = report.date
-        ..time = report.time
-        ..weather = report.weather
-        ..location = report.location
-        ..todayProgress = report.todayProgress
-        ..tasksDone = report.tasksDone
-        ..materialsUsed = report.materialsUsed
-        ..toolsUsed = report.toolsUsed
-        ..workersCount = report.workersCount
-        ..obstacles = report.obstacles
-        ..solutions = report.solutions
-        ..notes = report.notes
-        ..photos = report.photos
-        ..attachments = report.attachments
-        ..status = report.status
-        ..reviewerName = report.reviewerName
-        ..verificationDate = report.verificationDate
-        ..revisionNotes = report.revisionNotes
-        ..changeHistory = report.changeHistory.map((h) => ReportHistoryIsar()
-          ..date = h.date
-          ..user = h.user
-          ..action = h.action
-          ..details = h.details
-        ).toList();
-      await database.contractorReportIsars.put(isarReport);
-    });
+    final box = Hive.box<ContractorReportHive>('contractorReports');
+    final hiveReport = ContractorReportHive()
+      ..reportId = report.id
+      ..projectId = report.projectId
+      ..date = report.date
+      ..time = report.time
+      ..weather = report.weather
+      ..location = report.location
+      ..todayProgress = report.todayProgress
+      ..tasksDone = report.tasksDone
+      ..materialsUsed = report.materialsUsed
+      ..toolsUsed = report.toolsUsed
+      ..workersCount = report.workersCount
+      ..obstacles = report.obstacles
+      ..solutions = report.solutions
+      ..notes = report.notes
+      ..photos = report.photos
+      ..attachments = report.attachments
+      ..status = report.status
+      ..reviewerName = report.reviewerName
+      ..verificationDate = report.verificationDate
+      ..revisionNotes = report.revisionNotes
+      ..changeHistory = report.changeHistory.map((h) => ReportHistoryHive()
+        ..date = h.date
+        ..user = h.user
+        ..action = h.action
+        ..details = h.details
+      ).toList();
+    await box.put(report.id, hiveReport);
   }
 
   @override
   Future<void> updateContractorReport(ContractorReportModel report) async {
-    final database = await db;
-    final existing = await database.contractorReportIsars.filter().reportIdEqualTo(report.id).findFirst();
-    await database.writeTxn(() async {
-      final isarReport = (existing ?? ContractorReportIsar())
-        ..reportId = report.id
-        ..projectId = report.projectId
-        ..date = report.date
-        ..time = report.time
-        ..weather = report.weather
-        ..location = report.location
-        ..todayProgress = report.todayProgress
-        ..tasksDone = report.tasksDone
-        ..materialsUsed = report.materialsUsed
-        ..toolsUsed = report.toolsUsed
-        ..workersCount = report.workersCount
-        ..obstacles = report.obstacles
-        ..solutions = report.solutions
-        ..notes = report.notes
-        ..photos = report.photos
-        ..attachments = report.attachments
-        ..status = report.status
-        ..reviewerName = report.reviewerName
-        ..verificationDate = report.verificationDate
-        ..revisionNotes = report.revisionNotes
-        ..changeHistory = report.changeHistory.map((h) => ReportHistoryIsar()
-          ..date = h.date
-          ..user = h.user
-          ..action = h.action
-          ..details = h.details
-        ).toList();
-      await database.contractorReportIsars.put(isarReport);
-    });
+    await addContractorReport(report);
   }
 
   @override
   Future<void> deleteContractorReport(String id) async {
-    final database = await db;
-    final existing = await database.contractorReportIsars.filter().reportIdEqualTo(id).findFirst();
-    if (existing != null) {
-      await database.writeTxn(() async {
-        await database.contractorReportIsars.delete(existing.id);
-      });
-    }
+    final box = Hive.box<ContractorReportHive>('contractorReports');
+    await box.delete(id);
   }
 
   @override
   Future<List<SupervisorReportModel>> getSupervisorReports(String projectId) async {
-    final database = await db;
-    final list = await database.supervisorReportIsars.filter().projectIdEqualTo(projectId).findAll();
+    final box = Hive.box<SupervisorReportHive>('supervisorReports');
+    final list = box.values.where((r) => r.projectId == projectId).toList();
     return _toSupervisorModels(list);
   }
 
   @override
   Future<List<SupervisorReportModel>> getAllSupervisorReports() async {
-    final database = await db;
-    final list = await database.supervisorReportIsars.where().findAll();
+    final box = Hive.box<SupervisorReportHive>('supervisorReports');
+    final list = box.values.toList();
     return _toSupervisorModels(list);
   }
 
-  List<SupervisorReportModel> _toSupervisorModels(List<SupervisorReportIsar> list) {
+  List<SupervisorReportModel> _toSupervisorModels(List<SupervisorReportHive> list) {
     return list.map((raw) => SupervisorReportModel(
       id: raw.reportId,
       projectId: raw.projectId,
@@ -193,29 +147,25 @@ class ReportLocalDataSourceImpl implements ReportLocalDataSource {
 
   @override
   Future<void> addSupervisorReport(SupervisorReportModel report) async {
-    final database = await db;
-    await database.writeTxn(() async {
-      final isarReport = SupervisorReportIsar()
-        ..reportId = report.id
-        ..projectId = report.projectId
-        ..date = report.date
-        ..time = report.time
-        ..supervisorName = report.supervisorName
-        ..location = report.location
-        ..weather = report.weather
-        ..findings = report.findings
-        ..fieldConditions = report.fieldConditions
-        ..instructions = report.instructions
-        ..recommendations = report.recommendations
-        ..notes = report.notes
-        ..photos = report.photos
-        ..attachments = report.attachments;
-      await database.supervisorReportIsars.put(isarReport);
-    });
+    final box = Hive.box<SupervisorReportHive>('supervisorReports');
+    final hiveReport = SupervisorReportHive()
+      ..reportId = report.id
+      ..projectId = report.projectId
+      ..date = report.date
+      ..time = report.time
+      ..supervisorName = report.supervisorName
+      ..location = report.location
+      ..weather = report.weather
+      ..findings = report.findings
+      ..fieldConditions = report.fieldConditions
+      ..instructions = report.instructions
+      ..recommendations = report.recommendations
+      ..notes = report.notes
+      ..photos = report.photos
+      ..attachments = report.attachments;
+    await box.put(report.id, hiveReport);
   }
 
   @override
-  Future<void> seedReports() async {
-    // Already handled in IsarDatabaseService
-  }
+  Future<void> seedReports() async {}
 }
