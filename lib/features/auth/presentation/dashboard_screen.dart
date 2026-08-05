@@ -224,7 +224,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               children: [
                 _buildInfoRow(Icons.person_outline, 'Nama Lengkap', user.name),
                 const Divider(height: 1, color: Color(0xFFF0F1F5), indent: 16, endIndent: 16),
-                _buildInfoRow(Icons.badge_outlined, 'Username', user.username),
+                _buildInfoRow(Icons.badge_outlined, 'Username', user.username ?? '-'),
                 const Divider(height: 1, color: Color(0xFFF0F1F5), indent: 16, endIndent: 16),
                 _buildInfoRow(Icons.admin_panel_settings_outlined, 'Role', user.role.label),
               ],

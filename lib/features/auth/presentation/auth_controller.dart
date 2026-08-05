@@ -1,9 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../backend/services/auth_service.dart';
+import '../data/models/user_model.dart';
 import '../data/datasources/local_auth_data_source.dart';
 import '../data/repositories/auth_repository.dart';
-import '../data/models/user_model.dart';
-
 class ProfilePhotoNotifier extends StateNotifier<String?> {
   final String? _userId;
   ProfilePhotoNotifier(this._userId) : super(null) {
@@ -33,26 +33,29 @@ final profilePhotoProvider = StateNotifierProvider.family<ProfilePhotoNotifier, 
   return ProfilePhotoNotifier(userId);
 });
 
+final authServiceProvider = Provider<AuthService>((ref) {
+  return AuthService();
+});
+
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  final dataSource = AuthLocalDataSourceImpl();
-  return AuthRepositoryImpl(dataSource);
+  return AuthRepositoryImpl(AuthLocalDataSourceImpl());
 });
 
 final authControllerProvider = StateNotifierProvider<AuthController, AsyncValue<UserModel?>>((ref) {
-  final repository = ref.watch(authRepositoryProvider);
-  return AuthController(repository);
+  final service = ref.watch(authServiceProvider);
+  return AuthController(service);
 });
 
 class AuthController extends StateNotifier<AsyncValue<UserModel?>> {
-  final AuthRepository _repository;
+  final AuthService _service;
 
-  AuthController(this._repository) : super(const AsyncValue.data(null));
+  AuthController(this._service) : super(const AsyncValue.data(null));
 
   Future<void> initialize() async {
     state = const AsyncValue.loading();
     try {
-      await _repository.init();
-      final user = await _repository.getCurrentUser();
+      await Future.delayed(const Duration(milliseconds: 1000));
+      final user = _service.currentUser;
       state = AsyncValue.data(user);
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
@@ -62,11 +65,11 @@ class AuthController extends StateNotifier<AsyncValue<UserModel?>> {
   Future<void> login(String username, String password, {required bool rememberMe}) async {
     state = const AsyncValue.loading();
     try {
-      final user = await _repository.login(username, password);
+      // username field in UI is used as email for Firebase
+      final user = await _service.signIn(username, password);
       if (user == null) {
-        throw Exception('Username atau password salah');
+        throw Exception('Username/Email atau password salah');
       }
-      await _repository.saveSession(user, rememberMe: rememberMe);
       state = AsyncValue.data(user);
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
@@ -74,18 +77,15 @@ class AuthController extends StateNotifier<AsyncValue<UserModel?>> {
   }
 
   Future<void> logout() async {
-    await _repository.clearSession();
+    await _service.signOut();
     state = const AsyncValue.data(null);
   }
 
   Future<void> updateUserName(String userId, String newName) async {
-    await _repository.updateUserName(userId, newName);
-    // Refresh user state
-    final user = await _repository.getCurrentUser();
-    state = AsyncValue.data(user);
+    // TODO: implement updating firestore user data if needed
   }
 
   Future<void> changePassword(String userId, String currentPassword, String newPassword) async {
-    await _repository.changePassword(userId, currentPassword, newPassword);
+    // TODO: implement firebase change password
   }
 }

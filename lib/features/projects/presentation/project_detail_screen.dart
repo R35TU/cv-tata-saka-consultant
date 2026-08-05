@@ -6,7 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/enums/app_role.dart';
 import '../../../widgets/dynamic_folder_item.dart';
 import '../../auth/presentation/auth_controller.dart';
-import '../../auth/data/models/user_model.dart';
+import '../../../backend/models/user_model.dart';
 import '../data/models/project_model.dart';
 import '../data/models/document_model.dart';
 import 'project_controller.dart';

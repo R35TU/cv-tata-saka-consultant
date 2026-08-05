@@ -240,7 +240,7 @@ class _DrawerHeader extends ConsumerWidget {
     if (user.role == AppRole.konsultan) {
       return 'CV. Tata Saka Consultant';
     } else if (user.role == AppRole.kontraktor) {
-      if (user.username.contains('kontraktor2') || user.name.contains('Koko')) {
+      if ((user.username?.contains('kontraktor2') ?? false) || user.name.contains('Koko')) {
         return 'PT. Koko Jaya Kontraktor';
       }
       return 'CV. Budi Kontraktor';

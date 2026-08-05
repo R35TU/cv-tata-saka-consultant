@@ -10,16 +10,16 @@ import '../../timeline/presentation/timeline_controller.dart';
 import '../../notifications/presentation/notification_controller.dart';
 import '../../timeline/data/models/timeline_model.dart';
 import '../../notifications/data/models/notification_model.dart';
-import '../data/datasources/local_project_data_source.dart';
+import '../data/datasources/firebase_project_data_source.dart';
 import '../data/repositories/project_repository.dart';
 import '../data/models/project_model.dart';
 import '../data/datasources/local_document_data_source.dart';
 import '../data/repositories/document_repository.dart';
 import '../data/models/document_model.dart';
-import '../../auth/data/models/user_model.dart';
+import '../../../backend/models/user_model.dart';
 
 final projectRepositoryProvider = Provider<ProjectRepository>((ref) {
-  final dataSource = ProjectLocalDataSourceImpl();
+  final dataSource = ProjectFirebaseDataSourceImpl();
   return ProjectRepositoryImpl(dataSource);
 });
 
@@ -137,12 +137,10 @@ final allUsersProvider = FutureProvider<List<UserModel>>((ref) async {
   return rawUsers.map((u) => UserModel(
     id: u.userId,
     name: u.name,
-    username: u.username,
-    password: u.password,
-    role: AppRole.fromString(u.role),
     email: u.email,
-    phone: u.phone,
-    isActive: u.isActive,
+    role: AppRole.fromString(u.role),
+    username: u.username,
+    nomorHp: u.phone,
   )).toList();
 });
 
