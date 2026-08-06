@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -142,12 +143,19 @@ class _ProjectListScreenState extends ConsumerState<ProjectListScreen> with Sing
                             ClipRRect(
                               borderRadius: BorderRadius.circular(10.0),
                               child: selectedImagePath != null
-                                  ? Image.file(
-                                      File(selectedImagePath!),
-                                      height: 120,
-                                      width: double.infinity,
-                                      fit: BoxFit.cover,
-                                    )
+                                  ? (kIsWeb
+                                      ? Image.network(
+                                          selectedImagePath!,
+                                          height: 120,
+                                          width: double.infinity,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : Image.file(
+                                          File(selectedImagePath!),
+                                          height: 120,
+                                          width: double.infinity,
+                                          fit: BoxFit.cover,
+                                        ))
                                   : Container(
                                       height: 120,
                                       width: double.infinity,

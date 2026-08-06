@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../projects/presentation/project_controller.dart';
@@ -92,8 +93,10 @@ class _PendingApprovalsScreenState extends ConsumerState<PendingApprovalsScreen>
                             margin: const EdgeInsets.only(right: 10),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(8),
-                              child: p.startsWith('/') || p.startsWith('file://')
-                                  ? Image.file(File(p.replaceFirst('file://', '')), width: 90, height: 90, fit: BoxFit.cover)
+                              child: p.startsWith('/') || p.startsWith('file://') || p.startsWith('blob:')
+                                  ? (kIsWeb
+                                      ? Image.network(p, width: 90, height: 90, fit: BoxFit.cover)
+                                      : Image.file(File(p.replaceFirst('file://', '')), width: 90, height: 90, fit: BoxFit.cover))
                                   : Image.network(p, width: 90, height: 90, fit: BoxFit.cover),
                             ),
                           );

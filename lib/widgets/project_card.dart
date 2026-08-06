@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -213,14 +214,22 @@ class ProjectCard extends StatelessWidget {
     if (url.isEmpty) return placeholder;
 
     // Local file path (from image_picker)
-    if (url.startsWith('/') || url.startsWith('file://')) {
-      return Image.file(
-        File(url.replaceFirst('file://', '')),
-        height: h,
-        width: double.infinity,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => placeholder,
-      );
+    if (url.startsWith('/') || url.startsWith('file://') || url.startsWith('blob:')) {
+      return kIsWeb
+          ? Image.network(
+              url,
+              height: h,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => placeholder,
+            )
+          : Image.file(
+              File(url.replaceFirst('file://', '')),
+              height: h,
+              width: double.infinity,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => placeholder,
+            );
     }
 
     // Network URL

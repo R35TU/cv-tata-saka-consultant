@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -179,13 +180,21 @@ class AppImageWidget extends StatelessWidget {
 
     if (imagePath != null && imagePath!.isNotEmpty) {
       // Local file from gallery/camera
-      child = Image.file(
-        File(imagePath!),
-        width: width,
-        height: height,
-        fit: fit,
-        errorBuilder: (_, __, ___) => _buildPlaceholder(),
-      );
+      child = kIsWeb
+          ? Image.network(
+              imagePath!,
+              width: width,
+              height: height,
+              fit: fit,
+              errorBuilder: (_, __, ___) => _buildPlaceholder(),
+            )
+          : Image.file(
+              File(imagePath!),
+              width: width,
+              height: height,
+              fit: fit,
+              errorBuilder: (_, __, ___) => _buildPlaceholder(),
+            );
     } else if (imageUrl != null && imageUrl!.isNotEmpty) {
       // Network URL
       child = Image.network(

@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/enums/app_role.dart';
@@ -197,8 +198,10 @@ class _DetailDataLaporanScreenState extends ConsumerState<DetailDataLaporanScree
                             margin: const EdgeInsets.only(right: 8),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(6),
-                              child: p.startsWith('/') || p.startsWith('file://')
-                                  ? Image.file(File(p.replaceFirst('file://', '')), width: 80, height: 80, fit: BoxFit.cover)
+                              child: p.startsWith('/') || p.startsWith('file://') || p.startsWith('blob:')
+                                  ? (kIsWeb
+                                      ? Image.network(p, width: 80, height: 80, fit: BoxFit.cover)
+                                      : Image.file(File(p.replaceFirst('file://', '')), width: 80, height: 80, fit: BoxFit.cover))
                                   : Image.network(p, width: 80, height: 80, fit: BoxFit.cover),
                             ),
                           );
@@ -301,8 +304,10 @@ class _DetailDataLaporanScreenState extends ConsumerState<DetailDataLaporanScree
                             margin: const EdgeInsets.only(right: 8),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(6),
-                              child: p.startsWith('/') || p.startsWith('file://')
-                                  ? Image.file(File(p.replaceFirst('file://', '')), width: 80, height: 80, fit: BoxFit.cover)
+                              child: p.startsWith('/') || p.startsWith('file://') || p.startsWith('blob:')
+                                  ? (kIsWeb
+                                      ? Image.network(p, width: 80, height: 80, fit: BoxFit.cover)
+                                      : Image.file(File(p.replaceFirst('file://', '')), width: 80, height: 80, fit: BoxFit.cover))
                                   : Image.network(p, width: 80, height: 80, fit: BoxFit.cover),
                             ),
                           );

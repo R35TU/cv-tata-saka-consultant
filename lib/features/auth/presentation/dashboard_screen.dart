@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -290,12 +291,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                 child: () {
                                   final url = project.imageUrl;
                                   if (url.isEmpty) return _buildProjectImagePlaceholder(roleColor);
-                                  if (url.startsWith('/') || url.startsWith('file://')) {
-                                    return Image.file(
-                                      File(url.replaceFirst('file://', '')),
-                                      width: 54, height: 54, fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => _buildProjectImagePlaceholder(roleColor),
-                                    );
+                                  if (url.startsWith('/') || url.startsWith('file://') || url.startsWith('blob:')) {
+                                    return kIsWeb
+                                        ? Image.network(
+                                            url,
+                                            width: 54, height: 54, fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => _buildProjectImagePlaceholder(roleColor),
+                                          )
+                                        : Image.file(
+                                            File(url.replaceFirst('file://', '')),
+                                            width: 54, height: 54, fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => _buildProjectImagePlaceholder(roleColor),
+                                          );
                                   }
                                   return Image.network(
                                     url,
