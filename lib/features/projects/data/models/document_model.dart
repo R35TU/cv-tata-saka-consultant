@@ -42,8 +42,9 @@ class DocumentVersion {
 
 class DocumentModel {
   final String id;
-  final String projectId;
-  final String folderName; // 'Pra Kontrak' | 'Kontrak' | 'PCM' | 'Addendum' | 'Request Of Work' | 'Shop Drawing' | 'As Built Drawing' | 'Surat' | 'Dokumen Pendukung'
+  final String contractId;
+  final String? projectId;
+  final String folderId;
   final String name;
   final String fileUrl;
   final String fileSize;
@@ -54,8 +55,9 @@ class DocumentModel {
 
   const DocumentModel({
     required this.id,
-    required this.projectId,
-    required this.folderName,
+    required this.contractId,
+    this.projectId,
+    required this.folderId,
     required this.name,
     required this.fileUrl,
     required this.fileSize,
@@ -68,8 +70,9 @@ class DocumentModel {
   factory DocumentModel.fromJson(Map<String, dynamic> json) {
     return DocumentModel(
       id: json['id'] as String,
-      projectId: json['projectId'] as String,
-      folderName: json['folderName'] as String,
+      contractId: json['contractId'] as String,
+      projectId: json['projectId'] as String?,
+      folderId: json['folderId'] as String? ?? json['folderName'] as String? ?? '', // Fallback for old data
       name: json['name'] as String,
       fileUrl: json['fileUrl'] as String,
       fileSize: json['fileSize'] as String,
@@ -84,8 +87,9 @@ class DocumentModel {
 
   Map<String, dynamic> toJson() => {
         'id': id,
+        'contractId': contractId,
         'projectId': projectId,
-        'folderName': folderName,
+        'folderId': folderId,
         'name': name,
         'fileUrl': fileUrl,
         'fileSize': fileSize,
@@ -106,8 +110,9 @@ class DocumentModel {
   }) {
     return DocumentModel(
       id: id,
+      contractId: contractId,
       projectId: projectId,
-      folderName: folderName,
+      folderId: folderId,
       name: name ?? this.name,
       fileUrl: fileUrl ?? this.fileUrl,
       fileSize: fileSize ?? this.fileSize,

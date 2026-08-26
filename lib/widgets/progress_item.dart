@@ -1,32 +1,33 @@
 import 'package:flutter/material.dart';
-import '../screens/detail_proyek_screen.dart';
+import '../features/projects/presentation/project_detail_screen.dart';
 
 class ProgressItem extends StatelessWidget {
   final String title;
   final double progress; // Value between 0.0 and 1.0
   final Color progressColor;
+  final String? projectId;
 
   const ProgressItem({
     super.key,
     required this.title,
     required this.progress,
     required this.progressColor,
+    this.projectId,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => DetailProyekScreen(
-              title: title,
-              location: 'Purwokerto Selatan',
-              status: 'Progres',
-              imageUrl: 'https://images.unsplash.com/photo-1545628221-bb35ab299e58?q=80&w=600&auto=format&fit=crop',
+        if (projectId != null) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => ContractDetailScreen(
+                contractId: projectId!,
+              ),
             ),
-          ),
-        );
+          );
+        }
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8.0),

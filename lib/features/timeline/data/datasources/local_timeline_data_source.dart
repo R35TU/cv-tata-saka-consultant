@@ -46,7 +46,7 @@ class TimelineLocalDataSourceImpl implements TimelineLocalDataSource {
     await database.writeTxn(() async {
       final isarItem = TimelineIsar()
         ..timelineId = item.id
-        ..projectId = ''
+        ..contractId = ''
         ..title = item.title
         ..description = item.description
         ..user = item.user

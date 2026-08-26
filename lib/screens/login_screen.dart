@@ -76,9 +76,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       // Space above logo
                       SizedBox(height: screenHeight * 0.12),
                       
-                      // Logo
-                      LogoWidget(
-                        size: screenWidth * 0.38,
+                      Image.asset(
+                        'assets/images/LogoRev.png',
+                        width: screenWidth * 0.38 * 1.5,
+                        fit: BoxFit.contain,
                       ),
                       
                       SizedBox(height: screenHeight * 0.04),

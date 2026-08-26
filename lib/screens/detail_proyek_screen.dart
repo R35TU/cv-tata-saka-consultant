@@ -435,7 +435,7 @@ class _DetailProyekScreenState extends State<DetailProyekScreen> with SingleTick
             physics: const BouncingScrollPhysics(),
             child: Row(
               children: [
-                _buildTeamMemberItem('Aradea S.', 'Konsultan', const Color(0xFFE8F9EE), const Color(0xFF00C853)),
+                _buildTeamMemberItem('CV. Tata Saka Konsultan', 'Konsultan', const Color(0xFFE8F9EE), const Color(0xFF00C853)),
                 _buildVerticalDivider(),
                 _buildTeamMemberItem('Evos E.', 'Kontraktor', const Color(0xFFE5EAFF), const Color(0xFF001AFF)),
                 _buildVerticalDivider(),

@@ -376,13 +376,13 @@ class _AccountManagementScreenState extends ConsumerState<AccountManagementScree
   // ── Show Project Relations ────────────────────────────────────────────────
   void _showProjectRelationsDialog(UserModel user) async {
     final isar = await IsarDatabaseService.db;
-    final members = await isar.projectMemberIsars.filter().userIdEqualTo(user.id).findAll();
-    final allProjects = await isar.projectIsars.where().findAll();
+    final members = await isar.contractMemberIsars.filter().userIdEqualTo(user.id).findAll();
+    final allProjects = await isar.contractIsars.where().findAll();
 
     if (!mounted) return;
 
     final relatedProjects = members.map((m) {
-      final proj = allProjects.firstWhere((p) => p.projectId == m.projectId, orElse: () => throw Exception());
+      final proj = allProjects.firstWhere((p) => p.contractId == m.contractId, orElse: () => throw Exception());
       return {'name': proj.name, 'role': m.role, 'status': proj.status};
     }).toList();
 

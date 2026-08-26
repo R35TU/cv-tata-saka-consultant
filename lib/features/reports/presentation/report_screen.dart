@@ -8,6 +8,7 @@ import 'contractor_report_form.dart';
 import 'supervisor_report_form.dart';
 import 'pending_approvals_screen.dart';
 import 'rekap_laporan_screen.dart';
+import 'contractor_report_status_screen.dart';
 
 class ReportScreen extends ConsumerWidget {
   const ReportScreen({super.key});
@@ -65,31 +66,20 @@ class ReportScreen extends ConsumerWidget {
                 ),
               ),
 
-            // Menu 3: Permintaan Konfirmasi Laporan (Konsultan only)
-            if (role == AppRole.konsultan)
+            if (role == AppRole.kontraktor)
               LaporanMenuCard(
-                iconColor: const Color(0xFFE65100),
-                iconBackgroundColor: const Color(0xFFFFF0E0),
-                icon: Icons.pending_actions_rounded,
-                title: 'Permintaan Konfirmasi Laporan',
-                subtitle: 'Tinjau, setujui, atau tolak laporan harian kontraktor',
+                iconColor: const Color(0xFFFF9100),
+                iconBackgroundColor: const Color(0xFFFFF4E5),
+                icon: Icons.checklist_rtl_rounded,
+                title: 'Status Laporan Anda',
+                subtitle: 'Pantau riwayat laporan harian, status persetujuan, dan revisi',
                 onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => const PendingApprovalsScreen()),
+                  MaterialPageRoute(builder: (context) => const ContractorReportStatusScreen()),
                 ),
               ),
 
-            // Menu 4: Rekap Laporan (Konsultan, Kontraktor, and Dinas)
-            if (role != AppRole.eksternal)
-              LaporanMenuCard(
-                iconColor: const Color(0xFF6A1B9A),
-                iconBackgroundColor: const Color(0xFFF3E5F5),
-                icon: Icons.analytics_outlined,
-                title: 'Rekap Laporan',
-                subtitle: 'Generate rekap grafik kemajuan mingguan dan ekspor cetak PDF',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (context) => const RekapLaporanScreen()),
-                ),
-              ),
+
+
           ],
         ),
       ),

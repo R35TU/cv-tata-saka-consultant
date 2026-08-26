@@ -34,7 +34,7 @@ class ReportLocalDataSourceImpl implements ReportLocalDataSource {
   @override
   Future<List<ContractorReportModel>> getContractorReports(String projectId) async {
     final database = await db;
-    final list = await database.contractorReportIsars.filter().projectIdEqualTo(projectId).findAll();
+    final list = await database.contractorReportIsars.filter().contractIdEqualTo(projectId).findAll();
     return _toContractorModels(list);
   }
 
@@ -48,7 +48,7 @@ class ReportLocalDataSourceImpl implements ReportLocalDataSource {
   List<ContractorReportModel> _toContractorModels(List<ContractorReportIsar> list) {
     return list.map((raw) => ContractorReportModel(
       id: raw.reportId,
-      projectId: raw.projectId,
+      projectId: raw.contractId,
       date: raw.date,
       time: raw.time,
       weather: raw.weather,
@@ -82,7 +82,7 @@ class ReportLocalDataSourceImpl implements ReportLocalDataSource {
     await database.writeTxn(() async {
       final isarReport = ContractorReportIsar()
         ..reportId = report.id
-        ..projectId = report.projectId
+        ..contractId = report.projectId
         ..date = report.date
         ..time = report.time
         ..weather = report.weather
@@ -118,7 +118,7 @@ class ReportLocalDataSourceImpl implements ReportLocalDataSource {
     await database.writeTxn(() async {
       final isarReport = (existing ?? ContractorReportIsar())
         ..reportId = report.id
-        ..projectId = report.projectId
+        ..contractId = report.projectId
         ..date = report.date
         ..time = report.time
         ..weather = report.weather
@@ -161,7 +161,7 @@ class ReportLocalDataSourceImpl implements ReportLocalDataSource {
   @override
   Future<List<SupervisorReportModel>> getSupervisorReports(String projectId) async {
     final database = await db;
-    final list = await database.supervisorReportIsars.filter().projectIdEqualTo(projectId).findAll();
+    final list = await database.supervisorReportIsars.filter().contractIdEqualTo(projectId).findAll();
     return _toSupervisorModels(list);
   }
 
@@ -175,7 +175,7 @@ class ReportLocalDataSourceImpl implements ReportLocalDataSource {
   List<SupervisorReportModel> _toSupervisorModels(List<SupervisorReportIsar> list) {
     return list.map((raw) => SupervisorReportModel(
       id: raw.reportId,
-      projectId: raw.projectId,
+      projectId: raw.contractId,
       date: raw.date,
       time: raw.time,
       supervisorName: raw.supervisorName,
@@ -197,7 +197,7 @@ class ReportLocalDataSourceImpl implements ReportLocalDataSource {
     await database.writeTxn(() async {
       final isarReport = SupervisorReportIsar()
         ..reportId = report.id
-        ..projectId = report.projectId
+        ..contractId = report.projectId
         ..date = report.date
         ..time = report.time
         ..supervisorName = report.supervisorName

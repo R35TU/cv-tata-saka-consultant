@@ -16,6 +16,8 @@ import '../../projects/presentation/project_list_screen.dart';
 import '../../reports/presentation/report_screen.dart';
 import '../../timeline/presentation/timeline_screen.dart';
 import '../../reports/presentation/pending_approvals_screen.dart';
+import '../../reports/presentation/rejected_reports_screen.dart';
+import '../../reports/presentation/contractor_report_status_screen.dart';
 import 'edit_profile_screen.dart';
 import 'security_screen.dart';
 import 'settings_screen.dart';
@@ -76,13 +78,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
-      ref.read(projectsControllerProvider.notifier).loadProjects();
+    Future.microtask(() async {
+      await ref.read(authControllerProvider.notifier).initialize();
+      ref.read(contractsControllerProvider.notifier).loadProjects();
       ref.read(notificationsControllerProvider.notifier).loadNotifications();
       ref.read(timelineControllerProvider.notifier).loadTimeline();
       ref.read(contractorReportsProvider.notifier).loadReports();
       ref.read(supervisorReportsProvider.notifier).loadReports();
-      ref.read(authControllerProvider.notifier).initialize();
     });
   }
 
@@ -91,7 +93,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       case 0:
         return 'Dashboard';
       case 1:
-        return 'Daftar Proyek';
+        return 'Daftar Kontrak';
       case 2:
         return 'Laporan Proyek';
       case 3:
@@ -108,7 +110,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       case 0:
         return _buildDashboardContent();
       case 1:
-        return const ProjectListScreen();
+        return const ContractListScreen();
       case 2:
         return const ReportScreen();
       case 3:
@@ -122,13 +124,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   Widget _buildAccountTab() {
     final authState = ref.watch(authControllerProvider);
-    final projectsState = ref.watch(projectsControllerProvider);
+    final projectsState = ref.watch(contractsControllerProvider);
     final user = authState.valueOrNull;
     if (user == null) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final projects = projectsState.valueOrNull ?? [];
+    final rawProjects = projectsState.valueOrNull ?? [];
+    final projects = rawProjects.where((p) {
+      if (user.role == AppRole.kontraktor) {
+        return p.owner == user.name;
+      }
+      // Konsultan, Dinas, Eksternal melihat semua proyek
+      return true;
+    }).toList();
 
     // Role color mappings
     final Color roleColor = switch (user.role) {
@@ -521,7 +530,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget _buildDashboardContent() {
     final authState = ref.watch(authControllerProvider);
     final statsState = ref.watch(dashboardStatsProvider);
-    final projectsState = ref.watch(projectsControllerProvider);
+    final projectsState = ref.watch(contractsControllerProvider);
     final timelineState = ref.watch(timelineControllerProvider);
 
     final user = authState.valueOrNull;
@@ -575,7 +584,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   childAspectRatio: 1.35,
                   children: [
                     StatCard(
-                      title: 'Total Proyek',
+                      title: 'Total Kontrak',
                       value: totalProjects.toString(),
                       icon: Icons.folder,
                       iconColor: const Color(0xFF001AFF),
@@ -583,7 +592,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       onTap: () => setState(() => _currentIndex = 1),
                     ),
                     StatCard(
-                      title: 'Proyek Aktif',
+                      title: 'Kontrak Aktif',
                       value: activeProjects.toString(),
                       icon: Icons.bar_chart_rounded,
                       iconColor: const Color(0xFF00C853),
@@ -591,65 +600,58 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       onTap: () => setState(() => _currentIndex = 1),
                     ),
                     StatCard(
-                      title: 'Proyek Selesai',
+                      title: 'Kontrak Selesai',
                       value: completedProjects.toString(),
                       icon: Icons.check_box_rounded,
                       iconColor: const Color(0xFF001AFF),
                       iconBackgroundColor: const Color(0xFFE5EAFF),
                       onTap: () => setState(() => _currentIndex = 1),
                     ),
-                    StatCard(
-                      title: 'Laporan Menunggu',
-                      value: pendingReports.toString(),
-                      icon: Icons.hourglass_empty_rounded,
-                      iconColor: const Color(0xFFFF9100),
-                      iconBackgroundColor: const Color(0xFFFFF4E5),
-                      onTap: () {
-                        if (userRole == AppRole.konsultan) {
+                    if (userRole == AppRole.kontraktor)
+                      StatCard(
+                        title: 'Status Laporan',
+                        value: '',
+                        customValueWidget: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (totalReports == 0)
+                              const Text('Kosong', style: TextStyle(fontSize: 14, color: Colors.grey, fontWeight: FontWeight.bold))
+                            else if (pendingReports == 0 && rejectedReports == 0)
+                              Container(width: 14, height: 14, decoration: const BoxDecoration(color: Color(0xFF00C853), shape: BoxShape.circle))
+                            else ...[
+                              if (rejectedReports > 0)
+                                Container(width: 14, height: 14, margin: const EdgeInsets.only(right: 6), decoration: const BoxDecoration(color: Color(0xFFFF3D00), shape: BoxShape.circle)),
+                              if (pendingReports > 0)
+                                Container(width: 14, height: 14, decoration: const BoxDecoration(color: Color(0xFFFF9100), shape: BoxShape.circle)),
+                            ],
+                          ],
+                        ),
+                        icon: Icons.checklist_rtl_rounded,
+                        iconColor: const Color(0xFFFF9100),
+                        iconBackgroundColor: const Color(0xFFFFF4E5),
+                        onTap: () {
                           Navigator.of(context).push(
-                            MaterialPageRoute(builder: (context) => const PendingApprovalsScreen()),
+                            MaterialPageRoute(builder: (context) => const ContractorReportStatusScreen()),
                           );
-                        } else {
-                          setState(() => _currentIndex = 2);
-                        }
-                      },
-                    ),
-                    StatCard(
-                      title: 'Laporan Ditolak',
-                      value: rejectedReports.toString(),
-                      icon: Icons.cancel_outlined,
-                      iconColor: const Color(0xFFFF3D00),
-                      iconBackgroundColor: const Color(0xFFFFECE5),
-                      onTap: () => setState(() => _currentIndex = 2),
-                    ),
-                    StatCard(
-                      title: 'Total Laporan',
-                      value: totalReports.toString(),
-                      icon: Icons.description_rounded,
-                      iconColor: const Color(0xFFAB47BC),
-                      iconBackgroundColor: const Color(0xFFF3E5F5),
-                      onTap: () => setState(() => _currentIndex = 2),
-                    ),
+                        },
+                      )
+                    else ...[
+
+                      StatCard(
+                        title: 'Total Laporan',
+                        value: totalReports.toString(),
+                        icon: Icons.description_rounded,
+                        iconColor: const Color(0xFFAB47BC),
+                        iconBackgroundColor: const Color(0xFFF3E5F5),
+                        onTap: () => setState(() => _currentIndex = 2),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 20),
                 
                 const SizedBox(height: 28),
                 
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Proyek On Progress', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Color(0xFF1E1E1E), fontFamily: 'Inter')),
-                    TextButton(onPressed: () => setState(() => _currentIndex = 1), child: const Text('Lihat Semua', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: Color(0xFF001AFF), fontFamily: 'Inter'))),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (projects.isEmpty)
-                  const Center(child: Text('Belum ada data proyek.', style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey)))
-                else
-                  ...projects.take(3).map((project) => ProgressItem(title: project.name, progress: project.physicalProgress, progressColor: const Color(0xFF00C853))),
-            
-            const SizedBox(height: 28),
             DashboardChart(projects: projects, userRole: userRole),
             
             const SizedBox(height: 28),
@@ -693,23 +695,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final notifications = notificationsState.valueOrNull ?? [];
     final unreadCount = notifications.where((n) => !n.isRead).length;
 
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: Colors.white,
+      backgroundColor: theme.scaffoldBackgroundColor,
       drawer: AppDrawer(
         activeMenuId: _activeDrawerMenuId,
         onMenuTap: _onDrawerMenuTap,
       ),
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: colorScheme.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        bottom: PreferredSize(preferredSize: const Size.fromHeight(1.0), child: Container(color: const Color(0xFFF0F1F5), height: 1.0)),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Container(color: theme.dividerTheme.color ?? const Color(0xFFF0F1F5), height: 1.0),
+        ),
         leading: IconButton(
-          icon: const Icon(Icons.menu, color: Color(0xFF1E1E1E), size: 28),
+          icon: Icon(Icons.menu, color: colorScheme.onSurface, size: 28),
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
-        title: Text(_getAppBarTitle(), style: const TextStyle(color: Color(0xFF1E1E1E), fontWeight: FontWeight.w700, fontSize: 16.5, fontFamily: 'Inter')),
+        title: Text(_getAppBarTitle(), style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w700, fontSize: 16.5, fontFamily: 'Inter')),
         centerTitle: true,
         actions: [
           if (_currentIndex == 4) ...([
@@ -718,7 +726,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               final authState = ref.watch(authControllerProvider);
               final user = authState.valueOrNull;
               return IconButton(
-                icon: const Icon(Icons.edit_outlined, color: Color(0xFF1E1E1E), size: 24),
+                icon: Icon(Icons.edit_outlined, color: colorScheme.onSurface, size: 24),
                 onPressed: user == null
                     ? null
                     : () => Navigator.of(context).push(
@@ -732,7 +740,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             Stack(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.notifications_none_outlined, color: Color(0xFF1E1E1E), size: 26),
+                  icon: Icon(Icons.notifications_none_outlined, color: colorScheme.onSurface, size: 26),
                   onPressed: () => context.push('/notifications'),
                 ),
                 if (unreadCount > 0)
@@ -758,12 +766,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       ),
       body: _buildBody(),
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(border: Border(top: BorderSide(color: Color(0xFFF0F1F5), width: 1.0))),
+        decoration: BoxDecoration(border: Border(top: BorderSide(color: theme.dividerTheme.color ?? const Color(0xFFF0F1F5), width: 1.0))),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
           onTap: (index) => setState(() => _currentIndex = index),
           type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
+          backgroundColor: colorScheme.surface,
           selectedItemColor: const Color(0xFF001AFF),
           unselectedItemColor: const Color(0xFFB0B3BE),
           selectedLabelStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, fontFamily: 'Inter'),
@@ -771,7 +779,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           elevation: 0,
           items: const [
             BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Dashboard'),
-            BottomNavigationBarItem(icon: Icon(Icons.folder_outlined), label: 'Proyek'),
+            BottomNavigationBarItem(icon: Icon(Icons.folder_outlined), label: 'Kontrak'),
             BottomNavigationBarItem(icon: Icon(Icons.description_outlined), label: 'Laporan'),
             BottomNavigationBarItem(icon: Icon(Icons.timeline_outlined), label: 'Timeline'),
             BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Akun')

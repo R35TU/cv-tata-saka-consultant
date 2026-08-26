@@ -8,7 +8,7 @@ class TimelineItem extends StatelessWidget {
   final String date;        // e.g. "1 Januari 2025"
   final String time;        // e.g. "14:30"
   final String description; // bold activity text
-  final String actor;       // e.g. "Aradea (Konsultan)"
+  final String actor;       // e.g. "CV. Tata Saka (Konsultan)"
   final bool isLast;        // hides the connector line below the last dot
 
   const TimelineItem({

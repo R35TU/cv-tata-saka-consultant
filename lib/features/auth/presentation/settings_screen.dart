@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme/theme_controller.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   // ── State ──────────────────────────────────────────────────
-  String _selectedTheme = 'Terang';
   String _selectedLanguage = 'Indonesia';
 
   bool _pushNotif = true;
@@ -23,15 +24,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // ── Helpers ────────────────────────────────────────────────
   void _pickTheme() {
+    final currentThemeMode = ref.read(themeControllerProvider);
+    String selectedTheme = 'Terang';
+    if (currentThemeMode == ThemeMode.dark) selectedTheme = 'Gelap';
+    if (currentThemeMode == ThemeMode.system) selectedTheme = 'Mengikuti Sistem';
+
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (_) => _OptionSheet(
         title: 'Tema Aplikasi',
         options: const ['Terang', 'Gelap', 'Mengikuti Sistem'],
-        selected: _selectedTheme,
-        onSelect: (v) => setState(() => _selectedTheme = v),
+        selected: selectedTheme,
+        onSelect: (v) {
+          ThemeMode newMode = ThemeMode.light;
+          if (v == 'Gelap') newMode = ThemeMode.dark;
+          if (v == 'Mengikuti Sistem') newMode = ThemeMode.system;
+          ref.read(themeControllerProvider.notifier).setThemeMode(newMode);
+        },
       ),
     );
   }
@@ -63,13 +74,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _doBackup() {
-    final now = DateTime.now();
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-    final label =
-        '${now.day} ${months[now.month - 1]} ${now.year}  ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
-    setState(() => _lastBackup = label);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Backup data berhasil'), backgroundColor: Color(0xFF00C853)),
+      const SnackBar(content: Text('Fitur pencadangan data akan segera hadir (v2.0).')),
     );
   }
 
@@ -102,23 +108,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // ── Build ──────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F8FA),
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: colorScheme.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(1.0),
-          child: Divider(height: 1, color: Color(0xFFF0F1F5)),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0),
+          child: Divider(height: 1, color: theme.dividerTheme.color ?? const Color(0xFFF0F1F5)),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF1E1E1E)),
+          icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
+        title: Text(
           'Pengaturan',
-          style: TextStyle(color: Color(0xFF1E1E1E), fontWeight: FontWeight.w700, fontSize: 16.5, fontFamily: 'Inter'),
+          style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w700, fontSize: 16.5, fontFamily: 'Inter'),
         ),
         centerTitle: true,
       ),
@@ -132,14 +141,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _sectionTitle('Preferensi Aplikasi'),
             const SizedBox(height: 10),
             _card(children: [
-              _prefRow(
-                icon: Icons.wb_sunny_rounded,
-                iconBg: const Color(0xFFE8F4FF),
-                iconColor: const Color(0xFF2196F3),
-                title: 'Tema Aplikasi',
-                subtitle: 'Pilih tema aplikasi',
-                trailing: Text(_selectedTheme, style: const TextStyle(fontSize: 13, color: Color(0xFF8E8E93), fontFamily: 'Inter')),
-                onTap: _pickTheme,
+              Consumer(
+                builder: (context, ref, child) {
+                  final currentThemeMode = ref.watch(themeControllerProvider);
+                  String themeLabel = 'Terang';
+                  if (currentThemeMode == ThemeMode.dark) themeLabel = 'Gelap';
+                  if (currentThemeMode == ThemeMode.system) themeLabel = 'Mengikuti Sistem';
+                  
+                  return _prefRow(
+                    icon: Icons.wb_sunny_rounded,
+                    iconBg: const Color(0xFFE8F4FF),
+                    iconColor: const Color(0xFF2196F3),
+                    title: 'Tema Aplikasi',
+                    subtitle: 'Pilih tema aplikasi',
+                    trailing: Text(themeLabel, style: const TextStyle(fontSize: 13, color: Color(0xFF8E8E93), fontFamily: 'Inter')),
+                    onTap: _pickTheme,
+                  );
+                },
               ),
               const Divider(height: 1, color: Color(0xFFF0F1F5), indent: 16, endIndent: 16),
               _prefRow(
@@ -235,14 +253,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _sectionTitle(String title) => Text(
         title,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E), fontFamily: 'Inter'),
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface, fontFamily: 'Inter'),
       );
 
   Widget _card({required List<Widget> children}) => Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).cardTheme.color,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFFE8E8E8)),
+          border: Border.all(color: Theme.of(context).cardTheme.shape is RoundedRectangleBorder 
+              ? (Theme.of(context).cardTheme.shape as RoundedRectangleBorder).side.color 
+              : const Color(0xFFE8E8E8)),
         ),
         child: Column(children: children),
       );
@@ -273,7 +293,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: Color(0xFF1E1E1E), fontFamily: 'Inter')),
+                  Text(title, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface, fontFamily: 'Inter')),
                   const SizedBox(height: 2),
                   Text(subtitle, style: const TextStyle(fontSize: 11.5, color: Color(0xFF8E8E93), fontFamily: 'Inter')),
                 ],
@@ -307,7 +327,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: Color(0xFF1E1E1E), fontFamily: 'Inter')),
+                Text(title, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface, fontFamily: 'Inter')),
                 const SizedBox(height: 2),
                 Text(subtitle, style: const TextStyle(fontSize: 11.5, color: Color(0xFF8E8E93), fontFamily: 'Inter')),
               ],
@@ -347,7 +367,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: Color(0xFF1E1E1E), fontFamily: 'Inter')),
+                  Text(title, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface, fontFamily: 'Inter')),
                   const SizedBox(height: 2),
                   Text(subtitle, style: const TextStyle(fontSize: 11.5, color: Color(0xFF8E8E93), fontFamily: 'Inter')),
                 ],

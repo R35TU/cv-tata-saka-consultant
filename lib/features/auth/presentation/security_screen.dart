@@ -278,7 +278,11 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
 
                   const Divider(height: 1, color: Color(0xFFF0F1F5)),
                   TextButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Fitur lihat semua aktivitas akan segera hadir (v2.0).')),
+                      );
+                    },
                     child: const Text(
                       'Lihat Semua Aktivitas',
                       style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: Color(0xFF001AFF), fontFamily: 'Inter'),

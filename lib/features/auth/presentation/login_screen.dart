@@ -15,8 +15,8 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _rememberMe = false;
-  final TextEditingController _usernameController = TextEditingController(text: 'konsultan');
-  final TextEditingController _passwordController = TextEditingController(text: '123456');
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   @override
   void dispose() {
@@ -51,7 +51,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       },
       error: (error, _) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error.toString())),
+          SnackBar(content: Text(error.toString().replaceAll('Exception: ', ''))),
         );
       },
     );
@@ -111,7 +111,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               SizedBox(height: screenHeight * 0.12),
-                              LogoWidget(size: screenWidth * 0.38),
+                              Image.asset(
+                                'assets/images/LogoRev.png',
+                                width: screenWidth * 0.38 * 1.5,
+                                fit: BoxFit.contain,
+                              ),
                               SizedBox(height: screenHeight * 0.04),
                               const Text(
                                 'Selamat Datang',

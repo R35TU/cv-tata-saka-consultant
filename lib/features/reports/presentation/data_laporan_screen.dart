@@ -24,7 +24,7 @@ class _DataLaporanScreenState extends ConsumerState<DataLaporanScreen> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      ref.read(projectsControllerProvider.notifier).loadProjects();
+      ref.read(contractsControllerProvider.notifier).loadProjects();
     });
   }
 
@@ -40,16 +40,15 @@ class _DataLaporanScreenState extends ConsumerState<DataLaporanScreen> {
     final user = authState.valueOrNull;
     final userRole = user?.role ?? AppRole.eksternal;
 
-    final projectsState = ref.watch(projectsControllerProvider);
+    final projectsState = ref.watch(contractsControllerProvider);
     final rawProjects = projectsState.valueOrNull ?? [];
 
     // Filter projects based on role
     final projects = rawProjects.where((project) {
       if (userRole == AppRole.kontraktor) {
         return project.owner == user?.name;
-      } else if (userRole == AppRole.eksternal) {
-        return project.id == 'project-1';
       }
+      // konsultan, dinas, dan eksternal melihat semua proyek
       return true;
     }).toList();
 
@@ -181,8 +180,8 @@ class _DataLaporanScreenState extends ConsumerState<DataLaporanScreen> {
                             title: project.name,
                             location: project.location,
                             status: project.status,
-                            physicalProgress: project.physicalProgress,
-                            financialProgress: project.financialProgress,
+                            physicalProgress: 0.0,
+                            financialProgress: 0.0,
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute(
                                 builder: (context) => DetailDataLaporanScreen(projectId: project.id),

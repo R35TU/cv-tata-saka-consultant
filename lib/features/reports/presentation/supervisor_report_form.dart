@@ -91,7 +91,7 @@ class _SupervisorReportFormState extends ConsumerState<SupervisorReportForm> {
     final user = authState.valueOrNull;
     final supervisorName = user?.name ?? 'Konsultan';
 
-    final projectsState = ref.watch(projectsControllerProvider);
+    final projectsState = ref.watch(contractsControllerProvider);
     final projects = projectsState.valueOrNull ?? [];
 
     return Scaffold(

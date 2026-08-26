@@ -8,6 +8,7 @@ class LaporanHarianCard extends StatelessWidget {
   final Color iconColor;
   final Color iconBackgroundColor;
   final VoidCallback? onTap;
+  final Color? statusDotColor;
 
   const LaporanHarianCard({
     super.key,
@@ -15,6 +16,7 @@ class LaporanHarianCard extends StatelessWidget {
     required this.createdAt,
     this.iconColor = const Color(0xFF0D47A1),
     this.iconBackgroundColor = const Color(0xFFE8F0FE),
+    this.statusDotColor,
     this.onTap,
   });
 
@@ -82,6 +84,18 @@ class LaporanHarianCard extends StatelessWidget {
                 ],
               ),
             ),
+            
+            if (statusDotColor != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: statusDotColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ],
           ],
         ),
       ),

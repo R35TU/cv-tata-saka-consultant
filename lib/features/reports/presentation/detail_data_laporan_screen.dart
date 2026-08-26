@@ -39,7 +39,7 @@ class _DetailDataLaporanScreenState extends ConsumerState<DetailDataLaporanScree
     _weekStart = _mondayOf(_selectedDate);
     
     Future.microtask(() {
-      ref.read(projectsControllerProvider.notifier).loadProjects();
+      ref.read(contractsControllerProvider.notifier).loadProjects();
       ref.read(contractorReportsProvider.notifier).loadReports();
       ref.read(supervisorReportsProvider.notifier).loadReports();
     });
@@ -78,7 +78,7 @@ class _DetailDataLaporanScreenState extends ConsumerState<DetailDataLaporanScree
         }
       });
 
-  void _showContractorReportDetails(ContractorReportModel report, ProjectModel proj, AppRole role) {
+  void _showContractorReportDetails(ContractorReportModel report, ContractModel proj, AppRole role) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -116,7 +116,9 @@ class _DetailDataLaporanScreenState extends ConsumerState<DetailDataLaporanScree
                           ? const Color(0xFFE8F9EE)
                           : report.status == 'DITOLAK'
                               ? const Color(0xFFFFEBEE)
-                              : const Color(0xFFFFF0E0),
+                              : report.status == 'DIREVISI'
+                                  ? const Color(0xFFE0E0E0) // Grey for revised
+                                  : const Color(0xFFFFF0E0),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -126,12 +128,16 @@ class _DetailDataLaporanScreenState extends ConsumerState<DetailDataLaporanScree
                               ? Icons.check_circle_outline
                               : report.status == 'DITOLAK'
                                   ? Icons.error_outline_rounded
-                                  : Icons.access_time_rounded,
+                                  : report.status == 'DIREVISI'
+                                      ? Icons.history_rounded
+                                      : Icons.access_time_rounded,
                           color: report.status == 'DISETUJUI'
                               ? const Color(0xFF00C853)
                               : report.status == 'DITOLAK'
                                   ? const Color(0xFFFF3D00)
-                                  : const Color(0xFFFF9100),
+                                  : report.status == 'DIREVISI'
+                                      ? const Color(0xFF757575)
+                                      : const Color(0xFFFF9100),
                           size: 20,
                         ),
                         const SizedBox(width: 8),
@@ -357,22 +363,25 @@ class _DetailDataLaporanScreenState extends ConsumerState<DetailDataLaporanScree
     final authState = ref.watch(authControllerProvider);
     final role = authState.valueOrNull?.role ?? AppRole.eksternal;
 
-    final projectsState = ref.watch(projectsControllerProvider);
+    final projectsState = ref.watch(contractsControllerProvider);
     final projects = projectsState.valueOrNull ?? [];
     final project = projects.firstWhere(
       (p) => p.id == widget.projectId,
-      orElse: () => ProjectModel(
+      orElse: () => ContractModel(
         id: widget.projectId,
+        type: '',
         name: 'Memuat...',
         location: '',
         status: '',
-        physicalProgress: 0.0,
-        financialProgress: 0.0,
         imageUrl: '',
         description: '',
         owner: '',
         supervisor: '',
         createdAt: '',
+        startDate: '',
+        endDate: '',
+        dinas: [],
+        fundingSource: '',
       ),
     );
 
@@ -398,6 +407,10 @@ class _DetailDataLaporanScreenState extends ConsumerState<DetailDataLaporanScree
     final selectedDateStr = _dateKey(_selectedDate);
     final dayContractorReports = projectContractorReports.where((r) => r.date == selectedDateStr).toList();
     final daySupervisorReports = projectSupervisorReports.where((r) => r.date == selectedDateStr).toList();
+    
+    // Sort chronologically (oldest to newest) to show history progression
+    dayContractorReports.sort((a, b) => a.time.compareTo(b.time));
+    daySupervisorReports.sort((a, b) => a.time.compareTo(b.time));
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
@@ -616,6 +629,13 @@ class _DetailDataLaporanScreenState extends ConsumerState<DetailDataLaporanScree
                             createdAt: 'Diserahkan pukul ${report.time}',
                             iconColor: const Color(0xFF001AFF),
                             iconBackgroundColor: const Color(0xFFE5EAFF),
+                            statusDotColor: report.status == 'DISETUJUI' 
+                                ? const Color(0xFF00C853)
+                                : report.status == 'DITOLAK'
+                                    ? const Color(0xFFFF3D00)
+                                    : report.status == 'DIREVISI'
+                                        ? const Color(0xFF9E9E9E)
+                                        : const Color(0xFFFF9100),
                             onTap: () => _showContractorReportDetails(report, project, role),
                           )),
                       ...daySupervisorReports.map((report) => LaporanHarianCard(

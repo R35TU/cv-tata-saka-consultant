@@ -7,6 +7,7 @@ class StatCard extends StatelessWidget {
   final Color iconColor;
   final Color iconBackgroundColor;
   final VoidCallback? onTap;
+  final Widget? customValueWidget;
 
   const StatCard({
     super.key,
@@ -15,6 +16,7 @@ class StatCard extends StatelessWidget {
     required this.icon,
     required this.iconColor,
     required this.iconBackgroundColor,
+    this.customValueWidget,
     this.onTap,
   });
 
@@ -78,16 +80,19 @@ class StatCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            // Bottom: Large Value
-            Text(
-              value,
-              style: const TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF1E1E1E),
-                fontFamily: 'Inter',
+            // Bottom: Large Value or Custom Widget
+            if (customValueWidget != null)
+              customValueWidget!
+            else
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1E1E1E),
+                  fontFamily: 'Inter',
+                ),
               ),
-            ),
           ],
         ),
       ),

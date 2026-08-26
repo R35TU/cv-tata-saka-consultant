@@ -21,11 +21,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       case 0:
         return 'Dashboard';
       case 1:
-        return 'Daftar Proyek';
+        return 'Daftar Kontrak';
       case 2:
-        return 'Laporan Proyek';
+        return 'Laporan Kontrak';
       case 3:
-        return 'Kronologi Proyek';
+        return 'Kronologi Kontrak';
       case 4:
         return 'Akun';
       default:
@@ -95,7 +95,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 4),
             const Text(
-              'Aradea Kingdom',
+              'CV. Tata Saka Konsultan',
               style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.bold,
@@ -126,7 +126,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               childAspectRatio: 1.35,
               children: const [
                 StatCard(
-                  title: 'Total Proyek',
+                  title: 'Total Kontrak',
                   value: '5',
                   icon: Icons.folder,
                   iconColor: Color(0xFF001AFF),
@@ -147,7 +147,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   iconBackgroundColor: Color(0xFFFFF4E5),
                 ),
                 StatCard(
-                  title: 'Proyek Selesai',
+                  title: 'Kontrak Selesai',
                   value: '2',
                   icon: Icons.check_box_rounded,
                   iconColor: Color(0xFF001AFF),
@@ -158,12 +158,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             const SizedBox(height: 28),
 
-            // Proyek On Progress Section Header
+            // Kontrak On Progress Section Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  'Proyek On Progress',
+                  'Kontrak On Progress',
                   style: TextStyle(
                     fontSize: 14.5,
                     fontWeight: FontWeight.w700,
@@ -198,7 +198,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             
             const SizedBox(height: 12),
 
-            // Proyek On Progress Items
+            // Kontrak On Progress Items
             const ProgressItem(
               title: 'Fly Over Jl. Jendral Sudirman',
               progress: 0.82,
@@ -217,7 +217,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
             const SizedBox(height: 28),
 
-            // Progres Proyek Circular Donut Card
+            // progres kontrak Circular Donut Card
             const DashboardChart(),
             
             const SizedBox(height: 16),

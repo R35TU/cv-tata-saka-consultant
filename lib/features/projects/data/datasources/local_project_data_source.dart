@@ -3,27 +3,35 @@ import '../../../../core/database/isar_database_service.dart';
 import '../../../../core/database/isar_models.dart';
 import '../models/project_model.dart';
 
-abstract class ProjectLocalDataSource {
+abstract class ContractLocalDataSource {
   Future<void> init();
-  Future<List<ProjectModel>> getProjects({
+  Future<List<ContractModel>> getContracts({
     String? search,
+    String? type,
     String? status,
     String? userRole,
     String? userId,
     bool? isArchived,
   });
   Future<List<String>> getProjectIdsForUser(String userId);
+  Future<ContractModel?> getContractById(String id);
+  Future<void> addContract(ContractModel project);
+  Future<void> updateContract(ContractModel project);
+  Future<void> deleteContract(String id);
+
+  Future<List<ProjectModel>> getProjects(String contractId);
   Future<ProjectModel?> getProjectById(String id);
-  Future<void> addProject(ProjectModel project);
-  Future<void> updateProject(ProjectModel project);
+  Future<void> addProject(ProjectModel physicalActivity);
+  Future<void> updateProject(ProjectModel physicalActivity);
   Future<void> deleteProject(String id);
-  Future<List<ProjectMemberIsar>> getProjectMembers(String projectId);
-  Future<void> addProjectMember(String projectId, String userId, String role);
-  Future<void> removeProjectMember(String projectId, String userId);
+
+  Future<List<ContractMemberIsar>> getContractMembers(String contractId);
+  Future<void> addContractMember(String contractId, String userId, String role);
+  Future<void> removeContractMember(String contractId, String userId);
   Future<void> seedProjects();
 }
 
-class ProjectLocalDataSourceImpl implements ProjectLocalDataSource {
+class ContractLocalDataSourceImpl implements ContractLocalDataSource {
   Isar? _db;
 
   Future<Isar> get db async {
@@ -40,16 +48,17 @@ class ProjectLocalDataSourceImpl implements ProjectLocalDataSource {
   @override
   Future<List<String>> getProjectIdsForUser(String userId) async {
     final database = await db;
-    final members = await database.projectMemberIsars
+    final members = await database.contractMemberIsars
         .filter()
         .userIdEqualTo(userId)
         .findAll();
-    return members.map((m) => m.projectId).toList();
+    return members.map((m) => m.contractId).toList();
   }
 
   @override
-  Future<List<ProjectModel>> getProjects({
+  Future<List<ContractModel>> getContracts({
     String? search,
+    String? type,
     String? status,
     String? userRole,
     String? userId,
@@ -58,18 +67,24 @@ class ProjectLocalDataSourceImpl implements ProjectLocalDataSource {
     final targetArchived = isArchived ?? false;
     final database = await db;
 
-    // Role-based: kontraktor only sees projects they are a member of
-    List<String>? allowedProjectIds;
+    List<String>? allowedcontractIds;
     if (userRole == 'kontraktor' && userId != null) {
-      allowedProjectIds = await getProjectIdsForUser(userId);
-      if (allowedProjectIds.isEmpty) return [];
-    } else if (userRole == 'eksternal') {
-      // Eksternal can only see specific public projects
-      allowedProjectIds = ['project-1'];
+      final userObj = await database.userIsars.filter().userIdEqualTo(userId).findFirst();
+      final userName = userObj?.name ?? '';
+      final membercontractIds = await getProjectIdsForUser(userId);
+      final allActivities = await database.contractIsars.filter().isArchivedEqualTo(targetArchived).findAll();
+      allowedcontractIds = allActivities
+          .where((p) => (userName.isNotEmpty && p.owner == userName) || membercontractIds.contains(p.contractId))
+          .map((p) => p.contractId)
+          .toList();
+      if (allowedcontractIds.isEmpty) return [];
     }
-    // konsultan & dinas can see all projects
 
-    var query = database.projectIsars.filter().isArchivedEqualTo(targetArchived);
+    var query = database.contractIsars.filter().isArchivedEqualTo(targetArchived);
+
+    if (type != null && type.toLowerCase() != 'semua') {
+      query = query.typeEqualTo(type);
+    }
 
     if (status != null && status.toLowerCase() != 'semua') {
       query = query.statusEqualTo(status, caseSensitive: false);
@@ -85,18 +100,16 @@ class ProjectLocalDataSourceImpl implements ProjectLocalDataSource {
 
     final list = await query.findAll();
 
-    // Filter by allowed project IDs if applicable
-    final filtered = allowedProjectIds != null
-        ? list.where((p) => allowedProjectIds!.contains(p.projectId)).toList()
+    final filtered = allowedcontractIds != null
+        ? list.where((p) => allowedcontractIds!.contains(p.contractId)).toList()
         : list;
 
-    return filtered.map((raw) => ProjectModel(
-      id: raw.projectId,
+    return filtered.map((raw) => ContractModel(
+      id: raw.contractId,
+      type: raw.type,
       name: raw.name,
       location: raw.location,
       status: raw.status,
-      physicalProgress: raw.physicalProgress,
-      financialProgress: raw.financialProgress,
       imageUrl: raw.imageUrl,
       description: raw.description,
       owner: raw.owner,
@@ -104,57 +117,241 @@ class ProjectLocalDataSourceImpl implements ProjectLocalDataSource {
       createdAt: raw.createdAt,
       startDate: raw.startDate,
       endDate: raw.endDate,
-      ownerDetail: raw.ownerDetail,
+      dinas: raw.dinas,
       fundingSource: raw.fundingSource,
       isArchived: raw.isArchived,
     )).toList();
   }
 
   @override
-  Future<List<ProjectMemberIsar>> getProjectMembers(String projectId) async {
+  Future<List<ContractMemberIsar>> getContractMembers(String contractId) async {
     final database = await db;
-    return database.projectMemberIsars
+    return database.contractMemberIsars
         .filter()
-        .projectIdEqualTo(projectId)
+        .contractIdEqualTo(contractId)
         .findAll();
   }
 
   @override
-  Future<void> addProjectMember(String projectId, String userId, String role) async {
+  Future<void> addContractMember(String contractId, String userId, String role) async {
     final database = await db;
-    // Check if already a member
-    final existing = await database.projectMemberIsars
+    final existing = await database.contractMemberIsars
         .filter()
-        .projectIdEqualTo(projectId)
+        .contractIdEqualTo(contractId)
         .and()
         .userIdEqualTo(userId)
         .findFirst();
-    if (existing != null) return; // already a member
+    if (existing != null) return;
+    
+    final user = await database.userIsars.filter().userIdEqualTo(userId).findFirst();
+    
     await database.writeTxn(() async {
-      final member = ProjectMemberIsar()
-        ..projectId = projectId
+      final member = ContractMemberIsar()
+        ..contractId = contractId
         ..userId = userId
         ..role = role;
-      await database.projectMemberIsars.put(member);
+      await database.contractMemberIsars.put(member);
+      
+      if (user != null) {
+        final act = await database.contractIsars.filter().contractIdEqualTo(contractId).findFirst();
+        if (act != null) {
+          bool updated = false;
+          if (role == 'Pelaksana') {
+            act.owner = user.name;
+            updated = true;
+          } else if (role == 'Pengawas') {
+            act.supervisor = user.name;
+            updated = true;
+          }
+          if (updated) {
+            await database.contractIsars.put(act);
+          }
+        }
+      }
     });
   }
 
   @override
-  Future<void> removeProjectMember(String projectId, String userId) async {
+  Future<void> removeContractMember(String contractId, String userId) async {
     final database = await db;
-    final existing = await database.projectMemberIsars
+    final existing = await database.contractMemberIsars
         .filter()
-        .projectIdEqualTo(projectId)
+        .contractIdEqualTo(contractId)
         .and()
         .userIdEqualTo(userId)
         .findFirst();
     if (existing != null) {
       await database.writeTxn(() async {
-        await database.projectMemberIsars.delete(existing.id);
+        await database.contractMemberIsars.delete(existing.id);
+        
+        final act = await database.contractIsars.filter().contractIdEqualTo(contractId).findFirst();
+        if (act != null) {
+          bool updated = false;
+          if (existing.role == 'Pelaksana') {
+            act.owner = '';
+            updated = true;
+          } else if (existing.role == 'Pengawas') {
+            act.supervisor = '';
+            updated = true;
+          }
+          if (updated) {
+            await database.contractIsars.put(act);
+          }
+        }
       });
     }
   }
 
+  @override
+  Future<ContractModel?> getContractById(String id) async {
+    final database = await db;
+    final raw = await database.contractIsars.filter().contractIdEqualTo(id).findFirst();
+    if (raw == null) return null;
+    return ContractModel(
+      id: raw.contractId,
+      type: raw.type,
+      name: raw.name,
+      location: raw.location,
+      status: raw.status,
+      imageUrl: raw.imageUrl,
+      description: raw.description,
+      owner: raw.owner,
+      supervisor: raw.supervisor,
+      createdAt: raw.createdAt,
+      startDate: raw.startDate,
+      endDate: raw.endDate,
+      dinas: raw.dinas,
+      fundingSource: raw.fundingSource,
+      isArchived: raw.isArchived,
+    );
+  }
+
+  Future<void> _syncProjectMembers(Isar database, ContractModel project) async {
+    final allUsers = await database.userIsars.where().findAll();
+
+    final Map<String, String> targets = {};
+
+    if (project.owner.isNotEmpty) {
+      final ownerUser = allUsers.where((u) => u.name == project.owner).firstOrNull;
+      if (ownerUser != null) targets[ownerUser.userId] = 'Pelaksana';
+    }
+
+    if (project.supervisor.isNotEmpty) {
+      final supervisorUser = allUsers.where((u) => u.name == project.supervisor).firstOrNull;
+      if (supervisorUser != null && !targets.containsKey(supervisorUser.userId)) {
+        targets[supervisorUser.userId] = 'Pengawas';
+      }
+    }
+
+    for (final ku in allUsers.where((u) => u.role == 'konsultan')) {
+      if (!targets.containsKey(ku.userId)) targets[ku.userId] = 'Pengawas';
+    }
+
+    for (final du in allUsers.where((u) => u.role == 'dinas')) {
+      if (!targets.containsKey(du.userId)) targets[du.userId] = 'Pengawas Dinas';
+    }
+
+    final existing = await database.contractMemberIsars
+        .filter().contractIdEqualTo(project.id).findAll();
+    for (final old in existing) {
+      await database.writeTxn(() => database.contractMemberIsars.delete(old.id));
+    }
+
+    for (final entry in targets.entries) {
+      await database.writeTxn(() async {
+        await database.contractMemberIsars.put(
+          ContractMemberIsar()
+            ..contractId = project.id
+            ..userId = entry.key
+            ..role = entry.value,
+        );
+      });
+    }
+  }
+
+
+  @override
+  Future<void> addContract(ContractModel project) async {
+    final database = await db;
+    await database.writeTxn(() async {
+      final isarProj = ContractIsar()
+        ..contractId = project.id
+        ..type = project.type
+        ..name = project.name
+        ..location = project.location
+        ..status = project.status
+        ..imageUrl = project.imageUrl
+        ..description = project.description
+        ..owner = project.owner
+        ..supervisor = project.supervisor
+        ..createdAt = project.createdAt
+        ..startDate = project.startDate
+        ..endDate = project.endDate
+        ..dinas = project.dinas
+        ..fundingSource = project.fundingSource
+        ..isArchived = project.isArchived;
+      await database.contractIsars.put(isarProj);
+    });
+    await _syncProjectMembers(database, project);
+  }
+
+  @override
+  Future<void> updateContract(ContractModel project) async {
+    final database = await db;
+    final existing = await database.contractIsars
+        .filter()
+        .contractIdEqualTo(project.id)
+        .findFirst();
+    await database.writeTxn(() async {
+      final isarProj = (existing ?? ContractIsar())
+        ..contractId = project.id
+        ..type = project.type
+        ..name = project.name
+        ..location = project.location
+        ..status = project.status
+        ..imageUrl = project.imageUrl
+        ..description = project.description
+        ..owner = project.owner
+        ..supervisor = project.supervisor
+        ..createdAt = project.createdAt
+        ..startDate = project.startDate
+        ..endDate = project.endDate
+        ..dinas = project.dinas
+        ..fundingSource = project.fundingSource
+        ..isArchived = project.isArchived;
+      await database.contractIsars.put(isarProj);
+    });
+    await _syncProjectMembers(database, project);
+  }
+
+  @override
+  Future<void> deleteContract(String id) async {
+    final database = await db;
+    final existing = await database.contractIsars.filter().contractIdEqualTo(id).findFirst();
+    if (existing != null) {
+      await database.writeTxn(() async {
+        await database.contractIsars.delete(existing.id);
+      });
+    }
+  }
+  
+  @override
+  Future<List<ProjectModel>> getProjects(String contractId) async {
+    final database = await db;
+    final list = await database.projectIsars.filter().contractIdEqualTo(contractId).findAll();
+    return list.map((raw) => ProjectModel(
+      id: raw.projectId,
+      contractId: raw.contractId,
+      name: raw.name,
+      location: raw.location,
+      contractor: raw.contractor,
+      description: raw.description,
+      status: raw.status,
+      physicalProgress: raw.physicalProgress,
+      financialProgress: raw.financialProgress,
+    )).toList();
+  }
+  
   @override
   Future<ProjectModel?> getProjectById(String id) async {
     final database = await db;
@@ -162,75 +359,57 @@ class ProjectLocalDataSourceImpl implements ProjectLocalDataSource {
     if (raw == null) return null;
     return ProjectModel(
       id: raw.projectId,
+      contractId: raw.contractId,
       name: raw.name,
       location: raw.location,
+      contractor: raw.contractor,
+      description: raw.description,
       status: raw.status,
       physicalProgress: raw.physicalProgress,
       financialProgress: raw.financialProgress,
-      imageUrl: raw.imageUrl,
-      description: raw.description,
-      owner: raw.owner,
-      supervisor: raw.supervisor,
-      createdAt: raw.createdAt,
-      startDate: raw.startDate,
-      endDate: raw.endDate,
-      ownerDetail: raw.ownerDetail,
-      fundingSource: raw.fundingSource,
-      isArchived: raw.isArchived,
     );
   }
-
+  
   @override
-  Future<void> addProject(ProjectModel project) async {
+  Future<void> addProject(ProjectModel physicalActivity) async {
     final database = await db;
     await database.writeTxn(() async {
-      final isarProj = ProjectIsar()
-        ..projectId = project.id
-        ..name = project.name
-        ..location = project.location
-        ..status = project.status
-        ..physicalProgress = project.physicalProgress
-        ..financialProgress = project.financialProgress
-        ..imageUrl = project.imageUrl
-        ..description = project.description
-        ..owner = project.owner
-        ..supervisor = project.supervisor
-        ..createdAt = project.createdAt
-        ..startDate = project.startDate
-        ..endDate = project.endDate
-        ..ownerDetail = project.ownerDetail
-        ..fundingSource = project.fundingSource
-        ..isArchived = project.isArchived;
-      await database.projectIsars.put(isarProj);
+      final isarPhys = ProjectIsar()
+        ..projectId = physicalActivity.id
+        ..contractId = physicalActivity.contractId
+        ..name = physicalActivity.name
+        ..location = physicalActivity.location
+        ..contractor = physicalActivity.contractor
+        ..description = physicalActivity.description
+        ..status = physicalActivity.status
+        ..physicalProgress = physicalActivity.physicalProgress
+        ..financialProgress = physicalActivity.financialProgress;
+      await database.projectIsars.put(isarPhys);
     });
   }
-
+  
   @override
-  Future<void> updateProject(ProjectModel project) async {
+  Future<void> updateProject(ProjectModel physicalActivity) async {
     final database = await db;
-    final existing = await database.projectIsars.filter().projectIdEqualTo(project.id).findFirst();
+    final existing = await database.projectIsars
+        .filter()
+        .projectIdEqualTo(physicalActivity.id)
+        .findFirst();
     await database.writeTxn(() async {
-      final isarProj = (existing ?? ProjectIsar())
-        ..projectId = project.id
-        ..name = project.name
-        ..location = project.location
-        ..status = project.status
-        ..physicalProgress = project.physicalProgress
-        ..financialProgress = project.financialProgress
-        ..imageUrl = project.imageUrl
-        ..description = project.description
-        ..owner = project.owner
-        ..supervisor = project.supervisor
-        ..createdAt = project.createdAt
-        ..startDate = project.startDate
-        ..endDate = project.endDate
-        ..ownerDetail = project.ownerDetail
-        ..fundingSource = project.fundingSource
-        ..isArchived = project.isArchived;
-      await database.projectIsars.put(isarProj);
+      final isarPhys = (existing ?? ProjectIsar())
+        ..projectId = physicalActivity.id
+        ..contractId = physicalActivity.contractId
+        ..name = physicalActivity.name
+        ..location = physicalActivity.location
+        ..contractor = physicalActivity.contractor
+        ..description = physicalActivity.description
+        ..status = physicalActivity.status
+        ..physicalProgress = physicalActivity.physicalProgress
+        ..financialProgress = physicalActivity.financialProgress;
+      await database.projectIsars.put(isarPhys);
     });
   }
-
+  
   @override
   Future<void> deleteProject(String id) async {
     final database = await db;

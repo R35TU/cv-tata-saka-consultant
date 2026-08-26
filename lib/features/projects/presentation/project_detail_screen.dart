@@ -3,44 +3,53 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
+import 'package:isar/isar.dart';
+import '../../../../core/database/isar_database_service.dart';
+import '../../../../core/database/isar_models.dart';
 import '../../../../core/enums/app_role.dart';
 import '../../../widgets/dynamic_folder_item.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../auth/data/models/user_model.dart';
 import '../data/models/project_model.dart';
 import '../data/models/document_model.dart';
+import '../data/models/folder_model.dart';
 import 'project_controller.dart';
+import 'folder_controller.dart';
+import 'add_project_screen.dart';
 import '../../../widgets/mock_image_picker.dart';  // exports AppImagePicker
 
 // Fixed role options for project members
 const _kProjectRoles = ['Pengawas', 'Pelaksana', 'Pengawas Dinas', 'Eksternal'];
 
-class ProjectDetailScreen extends ConsumerStatefulWidget {
-  final String projectId;
+class ContractDetailScreen extends ConsumerStatefulWidget {
+  final String contractId;
 
-  const ProjectDetailScreen({super.key, required this.projectId});
+  const ContractDetailScreen({super.key, required this.contractId});
 
   @override
-  ConsumerState<ProjectDetailScreen> createState() => _ProjectDetailScreenState();
+  ConsumerState<ContractDetailScreen> createState() => _ContractDetailScreenState();
 }
 
-class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with SingleTickerProviderStateMixin {
+class _ContractDetailScreenState extends ConsumerState<ContractDetailScreen> with SingleTickerProviderStateMixin {
   TabController? _tabController;
 
   @override
   void initState() {
     super.initState();
     Future.microtask(() {
-      ref.read(documentsControllerProvider.notifier).loadDocuments(widget.projectId);
-      ref.read(projectsControllerProvider.notifier).loadProjects();
+      ref.read(documentsControllerProvider.notifier).loadDocuments(widget.contractId);
+      ref.read(contractsControllerProvider.notifier).loadProjects();
     });
   }
 
   void _setupTabController(bool isExternal) {
-    final length = isExternal ? 2 : 3;
+    final length = isExternal ? 1 : 2;
     if (_tabController == null || _tabController!.length != length) {
       _tabController?.dispose();
       _tabController = TabController(length: length, vsync: this);
+      _tabController!.addListener(() {
+        if (mounted) setState(() {});
+      });
     }
   }
 
@@ -51,7 +60,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
   }
 
   // ── Show Upload Dialog ───────────────────────────────────────────────────
-  void _showUploadDialog(String folderName, AppRole role, String userName) {
+  void _showUploadDialog(FolderModel folder, AppRole role, String userName) {
     final nameCtrl = TextEditingController();
     String extension = '.pdf';
 
@@ -59,7 +68,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text('Upload ke $folderName', style: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold, fontSize: 16)),
+          title: Text('Upload ke ${folder.name}', style: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold, fontSize: 16)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -98,8 +107,9 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
                 final filename = nameCtrl.text.trim() + extension;
                 final newDoc = DocumentModel(
                   id: const Uuid().v4(),
-                  projectId: widget.projectId,
-                  folderName: folderName,
+                  contractId: widget.contractId,
+                  projectId: folder.projectId,
+                  folderId: folder.id,
                   name: filename,
                   fileUrl: '/documents/$filename',
                   fileSize: '1.4 MB',
@@ -326,7 +336,6 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
               final ext = doc.name.endsWith('.pdf') ? '.pdf' : '.txt';
               final newName = nameCtrl.text.trim() + ext;
               await ref.read(documentsControllerProvider.notifier).uploadNewVersion(
-                    widget.projectId,
                     doc.id,
                     newName,
                     '1.5 MB',
@@ -362,7 +371,6 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
               final ext = doc.name.endsWith('.pdf') ? '.pdf' : '.txt';
               final newName = nameCtrl.text.trim() + ext;
               await ref.read(documentsControllerProvider.notifier).renameDocument(
-                    widget.projectId,
                     doc.id,
                     newName,
                     userName,
@@ -388,7 +396,6 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
           TextButton(
             onPressed: () async {
               await ref.read(documentsControllerProvider.notifier).deleteDocument(
-                    widget.projectId,
                     doc.id,
                     userName,
                     role.label,
@@ -402,50 +409,138 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
     );
   }
 
-  // ── Show Modify Progress Dialog (Konsultan only) ──────────────────────────
-  void _showModifyProgressDialog(ProjectModel project) {
-    double physical = project.physicalProgress;
-    double financial = project.financialProgress;
+  // (Optional functionality for future, removed for Day 1 constraints)
+
+  void _showEditProjectDialog(ContractModel project) async {
+    final isar = await IsarDatabaseService.db;
+    final allUsers = await isar.userIsars.where().findAll();
+    final kontraktorUsers = allUsers.where((u) => u.role.toLowerCase() == 'kontraktor').map((u) => u.name).toList();
+    final konsultanUsers = allUsers.where((u) => u.role.toLowerCase() == 'konsultan').map((u) => u.name).toList();
+
+    if (kontraktorUsers.isEmpty) kontraktorUsers.add(project.owner);
+    if (!kontraktorUsers.contains(project.owner)) kontraktorUsers.add(project.owner);
+
+    if (konsultanUsers.isEmpty) konsultanUsers.add(project.supervisor);
+    if (!konsultanUsers.contains(project.supervisor)) konsultanUsers.add(project.supervisor);
+
+    final formKey = GlobalKey<FormState>();
+    final ownerDetailCtrl = TextEditingController(text: project.dinas.join(", "));
+    final sourceCtrl = TextEditingController(text: project.fundingSource);
+    final descCtrl = TextEditingController(text: project.description);
+
+    String selectedOwner = kontraktorUsers.contains(project.owner) ? project.owner : kontraktorUsers.first;
+    String selectedSupervisor = konsultanUsers.contains(project.supervisor) ? project.supervisor : konsultanUsers.first;
+
+    if (!mounted) return;
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Ubah Progress Proyek', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold, fontSize: 16)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Progress Fisik: ${(physical * 100).toInt()}%', style: const TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.bold)),
-              Slider(
-                value: physical,
-                onChanged: (val) => setDialogState(() => physical = val),
-                activeColor: const Color(0xFF00C853),
-                inactiveColor: Colors.grey.shade200,
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
+          title: const Text('Ubah Informasi Proyek', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold, fontSize: 16)),
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Kontraktor Pelaksana', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                  const SizedBox(height: 4),
+                  DropdownButtonFormField<String>(
+                    value: selectedOwner,
+                    items: kontraktorUsers.map((name) => DropdownMenuItem(value: name, child: Text(name))).toList(),
+                    onChanged: (val) {
+                      if (val != null) setDialogState(() => selectedOwner = val);
+                    },
+                    decoration: InputDecoration(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Konsultan Pengawas', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                  const SizedBox(height: 4),
+                  DropdownButtonFormField<String>(
+                    value: selectedSupervisor,
+                    items: konsultanUsers.map((name) => DropdownMenuItem(value: name, child: Text(name))).toList(),
+                    onChanged: (val) {
+                      if (val != null) setDialogState(() => selectedSupervisor = val);
+                    },
+                    decoration: InputDecoration(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Pemilik Proyek (Instansi)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                  const SizedBox(height: 4),
+                  TextFormField(
+                    controller: ownerDetailCtrl,
+                    decoration: InputDecoration(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    validator: (v) => v == null || v.isEmpty ? 'Pemilik proyek harus diisi' : null,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Sumber Dana', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                  const SizedBox(height: 4),
+                  TextFormField(
+                    controller: sourceCtrl,
+                    decoration: InputDecoration(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('Deskripsi Proyek', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                  const SizedBox(height: 4),
+                  TextFormField(
+                    controller: descCtrl,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              Text('Progress Pengawasan: ${(financial * 100).toInt()}%', style: const TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.bold)),
-              Slider(
-                value: financial,
-                onChanged: (val) => setDialogState(() => financial = val),
-                activeColor: const Color(0xFF001AFF),
-                inactiveColor: Colors.grey.shade200,
-              ),
-            ],
+            ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Batal', style: TextStyle(color: Colors.grey))),
             TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Batal', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
               onPressed: () async {
-                await ref.read(projectsControllerProvider.notifier).updateProjectProgress(project.id, physical);
-                // Also update financial progress manually if needed
-                final updatedProject = project.copyWith(physicalProgress: physical, financialProgress: financial);
-                await ref.read(projectRepositoryProvider).updateProject(updatedProject);
-                ref.read(projectsControllerProvider.notifier).loadProjects();
-                if (mounted) Navigator.of(ctx).pop();
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Progres proyek berhasil diperbarui.')));
+                if (!formKey.currentState!.validate()) return;
+                final updated = project.copyWith(
+                  owner: selectedOwner,
+                  supervisor: selectedSupervisor,
+                  dinas: [ownerDetailCtrl.text.trim()],
+                  fundingSource: sourceCtrl.text.trim(),
+                  description: descCtrl.text.trim(),
+                );
+                await ref.read(contractRepositoryProvider).updateContract(updated);
+                ref.read(contractsControllerProvider.notifier).loadProjects();
+                ref.invalidate(contractMembersProvider(project.id));
+                if (mounted) {
+                  Navigator.of(ctx).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Informasi proyek berhasil diperbarui.')),
+                  );
+                }
               },
-              child: const Text('Simpan', style: TextStyle(color: Color(0xFF001AFF), fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF001AFF),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Simpan'),
             ),
           ],
         ),
@@ -464,22 +559,25 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
     final isExternal = userRole == AppRole.eksternal;
     _setupTabController(isExternal);
 
-    final projectsState = ref.watch(projectsControllerProvider);
+    final projectsState = ref.watch(contractsControllerProvider);
     final projects = projectsState.valueOrNull ?? [];
     final project = projects.firstWhere(
-      (p) => p.id == widget.projectId,
-      orElse: () => ProjectModel(
-        id: widget.projectId,
+      (p) => p.id == widget.contractId,
+      orElse: () => ContractModel(
+        id: widget.contractId,
+        type: '',
         name: 'Memuat...',
         location: '',
         status: '',
-        physicalProgress: 0.0,
-        financialProgress: 0.0,
         imageUrl: '',
         description: '',
         owner: '',
         supervisor: '',
         createdAt: '',
+        startDate: '',
+        endDate: '',
+        dinas: [],
+        fundingSource: '',
       ),
     );
 
@@ -507,7 +605,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
           onPressed: () => context.pop(),
         ),
         title: const Text(
-          'Detail Proyek',
+          'Detail Kegiatan / Kontrak',
           style: TextStyle(
             color: Color(0xFF1E1E1E),
             fontWeight: FontWeight.w700,
@@ -532,7 +630,6 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
               tabs: [
                 const Tab(text: 'Umum'),
                 if (!isExternal) const Tab(text: 'Administrasi'),
-                const Tab(text: 'Progres'),
               ],
             ),
           ),
@@ -545,11 +642,16 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
           // Tab 1: Umum Content
           _buildUmumTabContent(project, badgeBgColor, badgeDotColor, badgeTextColor, userRole),
           // Tab 2: Administrasi Content (Hidden if Eksternal)
-          if (!isExternal) _buildAdministrasiTabContent(documents, userRole, userName),
-          // Tab 3: Progres Content
-          _buildProgresTabContent(project, userRole),
+          if (!isExternal) _buildAdministrasiTabContent(project, userRole, userName),
         ],
       ),
+      floatingActionButton: (_tabController?.index == 1 && userRole.canManageAdministration)
+          ? FloatingActionButton(
+              onPressed: () => _showAddFolderDialog(project.id, null),
+              backgroundColor: const Color(0xFF001AFF),
+              child: const Icon(Icons.add, color: Colors.white),
+            )
+          : null,
     );
   }
 
@@ -577,7 +679,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
     );
   }
 
-  Widget _buildUmumTabContent(ProjectModel p, Color badgeBgColor, Color badgeDotColor, Color badgeTextColor, AppRole role) {
+  Widget _buildUmumTabContent(ContractModel p, Color badgeBgColor, Color badgeDotColor, Color badgeTextColor, AppRole role) {
     final photo = p.imageUrl;
 
     return SingleChildScrollView(
@@ -586,76 +688,39 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. Cover Image with Overlay Badge
-          Stack(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14.0),
-                child: _buildCoverImage(photo),
-              ),
-              if (role == AppRole.konsultan || role == AppRole.kontraktor)
-                Positioned(
-                  top: 10,
-                  right: 10,
-                  child: GestureDetector(
-                    onTap: () async {
-                      final path = await AppImagePicker.pickImage(context);
-                      if (path != null && context.mounted) {
-                        final updated = p.copyWith(imageUrl: path);
-                        await ref.read(projectRepositoryProvider).updateProject(updated);
-                        ref.read(projectsControllerProvider.notifier).loadProjects();
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Foto cover proyek berhasil diperbarui.')),
-                          );
-                        }
-                      }
-                    },
-                    child: const CircleAvatar(
-                      backgroundColor: Colors.white,
-                      radius: 18,
-                      child: Icon(Icons.camera_alt, color: Color(0xFF001AFF), size: 18),
-                    ),
-                  ),
-                ),
-              Positioned(
-                left: 14,
-                bottom: 14,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0),
+          // 1. Status Badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10.0, vertical: 5.0),
+            decoration: BoxDecoration(
+              color: badgeBgColor,
+              borderRadius: BorderRadius.circular(20.0),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
                   decoration: BoxDecoration(
-                    color: badgeBgColor,
-                    borderRadius: BorderRadius.circular(20.0),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: badgeDotColor,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        p.status,
-                        style: TextStyle(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.bold,
-                          color: badgeTextColor,
-                          fontFamily: 'Inter',
-                        ),
-                      ),
-                    ],
+                    color: badgeDotColor,
+                    shape: BoxShape.circle,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 6),
+                Text(
+                  p.status,
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.bold,
+                    color: badgeTextColor,
+                    fontFamily: 'Inter',
+                  ),
+                ),
+              ],
+            ),
           ),
           
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
           
           // 2. Project Title
           Text(
@@ -730,8 +795,19 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
             ],
           ),
           
-          const SizedBox(height: 22),
-          
+          const SizedBox(height: 24),
+
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Spesifikasi Kontrak',
+                style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Color(0xFF1E1E1E), fontFamily: 'Inter'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
           // 5. Specifications Table Card
           Container(
             decoration: BoxDecoration(
@@ -741,10 +817,10 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
             ),
             child: Column(
               children: [
-                _buildTableRow('Pemilik Proyek', p.ownerDetail),
+                _buildTableRow('Tipe Kontrak', p.type),
+                _buildTableRow('Instansi Jasa', p.dinas.join(', ')),
                 _buildTableRow('Sumber Dana', p.fundingSource),
                 _buildTableRow('Konsultan Pengawas', p.supervisor),
-                _buildTableRow('Kontraktor Pelaksana', p.owner),
                 _buildTableRow('Deskripsi', p.description, isLast: true, isLongText: true),
               ],
             ),
@@ -752,170 +828,252 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
           
           const SizedBox(height: 26),
 
-          // 6. Tim Proyek Section
-          _buildTimProyekSection(p.id, role),
+          // 6. Tim Kontrak Section — hanya untuk Dinas & Konsultan
+          if (role == AppRole.dinas || role == AppRole.konsultan)
+            _buildTimProyekSection(p.id, role),
 
-          const SizedBox(height: 28),
+          if (role == AppRole.dinas || role == AppRole.konsultan)
+            const SizedBox(height: 28),
           
-          // 7. Foto Dokumentasi Section
-          const Text('Foto Dokumentasi', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Color(0xFF1E1E1E), fontFamily: 'Inter')),
-          const SizedBox(height: 14),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: 4,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 14,
-              mainAxisSpacing: 14,
-              childAspectRatio: 1.45,
+          // 7. Proyek (Pekerjaan Fisik)
+          _buildPekerjaanFisikTabContent(p, role),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+  Widget _buildAdministrasiTabContent(ContractModel p, AppRole role, String userName) {
+    return _FolderListWidget(
+      contractId: p.id,
+      projectId: null,
+      role: role,
+      userName: userName,
+      onUpload: _showUploadDialog,
+      onAction: _showDocumentActionsBottomSheet,
+      onEdit: (f) => _showEditFolderDialog(p.id, null, f),
+      onDelete: (f) => _showDeleteFolderDialog(p.id, null, f),
+    );
+  }
+
+  void _showAddFolderDialog(String contractId, String? projectId) {
+    final folderController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Tambah Folder', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold, fontSize: 16)),
+          content: TextField(
+            controller: folderController,
+            decoration: InputDecoration(
+              hintText: 'Nama Folder',
+              hintStyle: const TextStyle(fontFamily: 'Inter', fontSize: 13, color: Color(0xFF8E8E93)),
+              filled: true,
+              fillColor: const Color(0xFFF8F9FA),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
             ),
-            itemBuilder: (context, index) {
-              return ClipRRect(
-                borderRadius: BorderRadius.circular(8.0),
-                child: Image.network(
-                  photo,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    color: Colors.grey.shade200,
-                    child: const Icon(Icons.image, color: Colors.grey),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal', style: TextStyle(color: Color(0xFF8E8E93), fontFamily: 'Inter', fontWeight: FontWeight.w600)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (folderController.text.isNotEmpty) {
+                  final contextId = projectId == null ? contractId : '$contractId:$projectId';
+                  ref.read(foldersControllerProvider(contextId).notifier).addFolder(folderController.text);
+                  Navigator.pop(context);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF001AFF),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Tambah', style: TextStyle(color: Colors.white, fontFamily: 'Inter', fontWeight: FontWeight.w600)),
+            ),
+          ],
+        );
+      }
+    );
+  }
+
+  void _showEditFolderDialog(String contractId, String? projectId, FolderModel folder) {
+    final nameCtrl = TextEditingController(text: folder.name);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Ubah Nama Folder', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold, fontSize: 16)),
+        content: TextField(
+          controller: nameCtrl,
+          decoration: const InputDecoration(labelText: 'Nama Folder Baru'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal', style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () {
+              if (nameCtrl.text.trim().isNotEmpty) {
+                final contextId = projectId == null ? contractId : '$contractId:$projectId';
+                ref.read(foldersControllerProvider(contextId).notifier).updateFolderName(folder.id, nameCtrl.text.trim());
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Simpan', style: TextStyle(color: Color(0xFF001AFF), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteFolderDialog(String contractId, String? projectId, FolderModel folder) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hapus Folder', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold, fontSize: 16)),
+        content: Text('Apakah Anda yakin ingin menghapus folder "${folder.name}"? Semua dokumen di dalamnya akan ikut terhapus.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal', style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () {
+              final contextId = projectId == null ? contractId : '$contractId:$projectId';
+              ref.read(foldersControllerProvider(contextId).notifier).deleteFolder(folder.id);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Hapus', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPekerjaanFisikTabContent(ContractModel p, AppRole role) {
+    final asyncActivities = ref.watch(projectsProvider(p.id));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Proyek', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E), fontFamily: 'Inter')),
+              if (role.canCreateProject)
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => AddProjectScreen(contractId: p.id)),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF001AFF).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add, color: Color(0xFF001AFF), size: 15),
+                        SizedBox(width: 4),
+                        Text('Tambah', style: TextStyle(fontFamily: 'Inter', fontSize: 11.5, fontWeight: FontWeight.w600, color: Color(0xFF001AFF))),
+                      ],
+                    ),
                   ),
                 ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          asyncActivities.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Text('Error: $e'),
+            data: (activities) {
+              if (activities.isEmpty) {
+                return Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8F9FA),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE8E8E8)),
+                  ),
+                  child: const Center(
+                    child: Text('Belum ada proyek yang didaftarkan pada kontrak ini.', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Inter', fontSize: 12, color: Color(0xFF8E8E93))),
+                  ),
+                );
+              }
+              
+              return ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: activities.length,
+                itemBuilder: (context, index) {
+                  final act = activities[index];
+                  return GestureDetector(
+                    onTap: () {
+                      context.push('/physical_activities/${act.id}', extra: act);
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
+                        boxShadow: const [
+                          BoxShadow(color: Color(0x04000000), blurRadius: 10, offset: Offset(0, 4)),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(act.name, style: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1E1E1E))),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.location_on_outlined, size: 12, color: Color(0xFF8E8E93)),
+                                    const SizedBox(width: 4),
+                                    Text(act.location, style: const TextStyle(fontFamily: 'Inter', fontSize: 11, color: Color(0xFF8E8E93))),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.engineering_outlined, size: 12, color: Color(0xFF8E8E93)),
+                                    const SizedBox(width: 4),
+                                    Expanded(child: Text(act.contractor, style: const TextStyle(fontFamily: 'Inter', fontSize: 11, color: Color(0xFF8E8E93)), overflow: TextOverflow.ellipsis)),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8F9EE),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.show_chart_rounded, size: 12, color: Color(0xFF00C853)),
+                                const SizedBox(width: 4),
+                                Text('${(act.physicalProgress * 100).toInt()}%', style: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF00C853))),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               );
             },
           ),
-          const SizedBox(height: 24),
         ],
-      ),
-    );
-  }
-
-  Widget _buildAdministrasiTabContent(List<DocumentModel> docs, AppRole role, String userName) {
-    // Group files by folder categories
-    final List<String> folderNames = [
-      'Dokumen Pra Kontrak',
-      'Dokumen Kontrak',
-      'PCM',
-      'Adendum',
-      'Request Of Work',
-      'Shop Drawing',
-      'As Built Drawing',
-      'Surat',
-      'Dokumen Pendukung'
-    ];
-
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.all(20.0),
-      child: Column(
-        children: folderNames.map((folder) {
-          final folderDocs = docs.where((d) => d.folderName.toLowerCase() == folder.toLowerCase()).toList();
-          return DynamicFolderItem(
-            folderName: folder,
-            fileCount: folderDocs.length,
-            documents: folderDocs,
-            showUploadButton: role.canManageAdministration,
-            onUploadTap: () => _showUploadDialog(folder, role, userName),
-            onDocumentTap: (doc) => _showDocumentActionsBottomSheet(doc, role, userName),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildProgresTabContent(ProjectModel p, AppRole role) {
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Physical progress block
-          const Text('Progress Fisik Proyek', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E), fontFamily: 'Inter')),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8.0),
-                  child: LinearProgressIndicator(
-                    value: p.physicalProgress,
-                    minHeight: 18,
-                    color: const Color(0xFF00C853),
-                    backgroundColor: Colors.grey.shade200,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Text('${(p.physicalProgress * 100).toInt()}%', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E), fontFamily: 'Inter')),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Supervision progress block
-          const Text('Progress Pengawasan Proyek', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E), fontFamily: 'Inter')),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8.0),
-                  child: LinearProgressIndicator(
-                    value: p.financialProgress,
-                    minHeight: 18,
-                    color: const Color(0xFF001AFF),
-                    backgroundColor: Colors.grey.shade200,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              Text('${(p.financialProgress * 100).toInt()}%', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E), fontFamily: 'Inter')),
-            ],
-          ),
-          const SizedBox(height: 36),
-
-          // Statistics card
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFF0F1F5), width: 1.5),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Statistik Penyelesaian', style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold, fontFamily: 'Inter')),
-                const SizedBox(height: 16),
-                _buildStatProgressRow('Rata-rata Kenaikan Mingguan', '2.4%'),
-                const Divider(height: 24, color: Color(0xFFF0F1F5)),
-                _buildStatProgressRow('Deviasi Rencana vs Realisasi', '+1.2% (Surplus)'),
-                const Divider(height: 24, color: Color(0xFFF0F1F5)),
-                _buildStatProgressRow('Sisa Hari Kerja Kontrak', '124 Hari'),
-              ],
-            ),
-          ),
-          const SizedBox(height: 28),
-
-          // Change Progress button (Konsultan only)
-          if (role.canInputSupervisorReport) // Only Konsultan has right to change progress directly
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton.icon(
-                onPressed: () => _showModifyProgressDialog(p),
-                icon: const Icon(Icons.edit_road_rounded, color: Colors.white),
-                label: const Text('Sesuaikan Progres Fisik & Pengawasan', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'Inter')),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF001AFF),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10.0)),
-                  elevation: 0,
-                ),
-              ),
-            ),
-        ],
-      ),
     );
   }
 
@@ -930,25 +1088,30 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
   }
 
   // ── Tim Proyek Section (real data) ──────────────────────────────────────
-  Widget _buildTimProyekSection(String projectId, AppRole role) {
-    final membersAsync = ref.watch(projectMembersProvider(projectId));
+  Widget _buildTimProyekSection(String contractId, AppRole role) {
+    final membersAsync = ref.watch(contractMembersProvider(contractId));
     final allUsersAsync = ref.watch(allUsersProvider);
 
     return membersAsync.when(
       loading: () => const SizedBox(height: 60, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
       error: (e, _) => Text('Error memuat tim: $e', style: const TextStyle(fontFamily: 'Inter', fontSize: 12, color: Colors.red)),
-      data: (members) {
+      data: (allMembers) {
         final allUsers = allUsersAsync.valueOrNull ?? [];
+        final members = allMembers.where((m) {
+          final user = allUsers.where((u) => u.id == m.userId).firstOrNull;
+          return user?.role != AppRole.kontraktor;
+        }).toList();
+        
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Tim Proyek', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Color(0xFF1E1E1E), fontFamily: 'Inter')),
+                const Text('Tim Kontrak', style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Color(0xFF1E1E1E), fontFamily: 'Inter')),
                 if (role.canManageProjects)
                   GestureDetector(
-                    onTap: () => _showKelolaTim(projectId, members, allUsers),
+                    onTap: () => _showKelolaTim(contractId, members, allUsers),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
@@ -1019,7 +1182,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
 
   // ── Dialog: Kelola Tim Proyek ─────────────────────────────────────────────
   void _showKelolaTim(
-    String projectId,
+    String contractId,
     List<dynamic> currentMembers,
     List<UserModel> allUsers,
   ) {
@@ -1028,7 +1191,7 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => _KelolaTimSheet(
-        projectId: projectId,
+        contractId: contractId,
         allUsers: allUsers,
         ref: ref,
       ),
@@ -1126,12 +1289,12 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
 // ═══════════════════════════════════════════════════════════════════════════
 
 class _KelolaTimSheet extends ConsumerStatefulWidget {
-  final String projectId;
+  final String contractId;
   final List<UserModel> allUsers;
   final WidgetRef ref;
 
   const _KelolaTimSheet({
-    required this.projectId,
+    required this.contractId,
     required this.allUsers,
     required this.ref,
   });
@@ -1142,7 +1305,6 @@ class _KelolaTimSheet extends ConsumerStatefulWidget {
 
 class _KelolaTimSheetState extends ConsumerState<_KelolaTimSheet> {
   UserModel? _selectedUser;
-  String _selectedProjectRole = _kProjectRoles[0];
   bool _isAdding = false;
 
   Color _roleColor(AppRole role) => switch (role) {
@@ -1152,9 +1314,17 @@ class _KelolaTimSheetState extends ConsumerState<_KelolaTimSheet> {
     AppRole.eksternal  => const Color(0xFFAB47BC),
   };
 
+  /// Jabatan di proyek otomatis ditentukan dari role akun
+  String _autoRoleLabel(AppRole role) => switch (role) {
+    AppRole.konsultan  => 'Pengawas',
+    AppRole.kontraktor => 'Pelaksana',
+    AppRole.dinas      => 'Pengawas Dinas',
+    AppRole.eksternal  => 'Eksternal',
+  };
+
   @override
   Widget build(BuildContext context) {
-    final membersAsync = ref.watch(projectMembersProvider(widget.projectId));
+    final membersAsync = ref.watch(contractMembersProvider(widget.contractId));
 
     return DraggableScrollableSheet(
       initialChildSize: 0.75,
@@ -1272,7 +1442,7 @@ class _KelolaTimSheetState extends ConsumerState<_KelolaTimSheet> {
                                       IconButton(
                                         icon: const Icon(Icons.person_remove_outlined, size: 18, color: Color(0xFFFF3D00)),
                                         onPressed: () async {
-                                          await ref.read(projectsControllerProvider.notifier).removeMember(widget.projectId, m.userId);
+                                          await ref.read(contractsControllerProvider.notifier).removeMember(widget.contractId, m.userId);
                                           if (mounted) {
                                             ScaffoldMessenger.of(context).showSnackBar(
                                               SnackBar(content: Text('${user?.name ?? 'Anggota'} dihapus dari tim.')),
@@ -1304,7 +1474,10 @@ class _KelolaTimSheetState extends ConsumerState<_KelolaTimSheet> {
                   Builder(builder: (context) {
                     final currentMembers = membersAsync.valueOrNull ?? [];
                     final currentMemberIds = currentMembers.map((m) => m.userId).toSet();
-                    final availableUsers = widget.allUsers.where((u) => !currentMemberIds.contains(u.id)).toList();
+                    // Dinas otomatis masuk — jangan tampilkan di dropdown
+                    final availableUsers = widget.allUsers
+                        .where((u) => !currentMemberIds.contains(u.id) && u.role != AppRole.dinas)
+                        .toList();
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1341,27 +1514,28 @@ class _KelolaTimSheetState extends ConsumerState<_KelolaTimSheet> {
                           ),
                         ),
 
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 12),
 
-                        // Jabatan dropdown
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: const Color(0xFFE5E7EB)),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              isExpanded: true,
-                              value: _selectedProjectRole,
-                              items: _kProjectRoles.map((r) => DropdownMenuItem(
-                                value: r,
-                                child: Text('Jabatan: $r', style: const TextStyle(fontFamily: 'Inter', fontSize: 13)),
-                              )).toList(),
-                              onChanged: (v) => setState(() => _selectedProjectRole = v!),
+                        // ── Jabatan info (otomatis dari role akun) ──────
+                        if (_selectedUser != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8F9FA),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFFE5E7EB)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.info_outline_rounded, size: 15, color: Color(0xFF6B7280)),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Jabatan: ${_autoRoleLabel(_selectedUser!.role)}',
+                                  style: const TextStyle(fontFamily: 'Inter', fontSize: 12.5, color: Color(0xFF6B7280)),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
 
                         const SizedBox(height: 12),
 
@@ -1378,10 +1552,10 @@ class _KelolaTimSheetState extends ConsumerState<_KelolaTimSheet> {
                             onPressed: (_selectedUser == null || _isAdding) ? null : () async {
                               final addedName = _selectedUser!.name;
                               setState(() => _isAdding = true);
-                              await ref.read(projectsControllerProvider.notifier).addMember(
-                                widget.projectId,
+                              await ref.read(contractsControllerProvider.notifier).addMember(
+                                widget.contractId,
                                 _selectedUser!.id,
-                                _selectedProjectRole,
+                                _autoRoleLabel(_selectedUser!.role),
                               );
                               setState(() {
                                 _isAdding = false;
@@ -1408,6 +1582,112 @@ class _KelolaTimSheetState extends ConsumerState<_KelolaTimSheet> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _FolderListWidget extends ConsumerWidget {
+  final String contractId;
+  final String? projectId;
+  final AppRole role;
+  final String userName;
+  final void Function(FolderModel, AppRole, String) onUpload;
+  final void Function(DocumentModel, AppRole, String) onAction;
+  final void Function(FolderModel) onEdit;
+  final void Function(FolderModel) onDelete;
+
+  const _FolderListWidget({
+    required this.contractId,
+    this.projectId,
+    required this.role,
+    required this.userName,
+    required this.onUpload,
+    required this.onAction,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final contextId = projectId == null ? contractId : "$contractId:$projectId";
+    final foldersAsync = ref.watch(foldersControllerProvider(contextId));
+
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Folder Administrasi', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E1E1E), fontFamily: 'Inter')),
+            ],
+          ),
+          const SizedBox(height: 16),
+          foldersAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, st) => Center(child: Text('Error: $e')),
+            data: (folders) {
+              if (folders.isEmpty) {
+                return const Center(child: Text('Belum ada folder.', style: TextStyle(color: Colors.grey, fontSize: 13)));
+              }
+              return Column(
+                children: folders.map((folder) {
+                  return _FolderItemConsumer(
+                    folder: folder,
+                    role: role,
+                    userName: userName,
+                    onUpload: onUpload,
+                    onAction: onAction,
+                    onEdit: onEdit,
+                    onDelete: onDelete,
+                  );
+                }).toList(),
+              );
+            }
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FolderItemConsumer extends ConsumerWidget {
+  final FolderModel folder;
+  final AppRole role;
+  final String userName;
+  final void Function(FolderModel, AppRole, String) onUpload;
+  final void Function(DocumentModel, AppRole, String) onAction;
+  final void Function(FolderModel) onEdit;
+  final void Function(FolderModel) onDelete;
+
+  const _FolderItemConsumer({
+    required this.folder,
+    required this.role,
+    required this.userName,
+    required this.onUpload,
+    required this.onAction,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final allDocsState = ref.watch(documentsControllerProvider);
+    final allDocs = allDocsState.valueOrNull ?? [];
+    final folderDocs = allDocs.where((d) => d.folderId == folder.id).toList();
+
+    return DynamicFolderItem(
+      folderName: folder.name,
+      fileCount: folderDocs.length,
+      documents: folderDocs,
+      showUploadButton: role.canManageAdministration,
+      isDefaultFolder: folder.isDefault,
+      onUploadTap: () => onUpload(folder, role, userName),
+      onDocumentTap: (doc) => onAction(doc, role, userName),
+      onEditFolderTap: () => onEdit(folder),
+      onDeleteFolderTap: () => onDelete(folder),
     );
   }
 }

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/utils/app_router.dart';
+import 'core/theme/app_theme.dart';
+import 'core/theme/theme_controller.dart';
 
 void main() {
   // Ensure status bar style matches design (e.g. white background on top, dark text)
@@ -21,20 +23,15 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    final themeMode = ref.watch(themeControllerProvider);
+    
     return MaterialApp.router(
       title: 'Tata Saka Consultant',
       debugShowCheckedModeBanner: false,
       routerConfig: router,
-      theme: ThemeData(
-        useMaterial3: true,
-        primaryColor: const Color(0xFF001AFF),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF001AFF),
-          primary: const Color(0xFF001AFF),
-        ),
-        scaffoldBackgroundColor: Colors.white,
-        fontFamily: 'Inter',
-      ),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeMode,
     );
   }
 }

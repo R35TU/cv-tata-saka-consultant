@@ -48,8 +48,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
           children: [
             // Center Logo
             Center(
-              child: LogoWidget(
-                size: MediaQuery.of(context).size.width * 0.35,
+              child: Image.asset(
+                'assets/images/LogoRev.png',
+                width: MediaQuery.of(context).size.width * 0.35 * 1.5,
+                fit: BoxFit.contain,
               ),
             ),
             // Bottom Wave with Company Details

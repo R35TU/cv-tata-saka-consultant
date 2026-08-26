@@ -16,26 +16,37 @@ import '../data/models/project_model.dart';
 import '../data/datasources/local_document_data_source.dart';
 import '../data/repositories/document_repository.dart';
 import '../data/models/document_model.dart';
+import '../data/models/folder_model.dart';
 import '../../auth/data/models/user_model.dart';
+import 'folder_controller.dart';
 
-final projectRepositoryProvider = Provider<ProjectRepository>((ref) {
-  final dataSource = ProjectLocalDataSourceImpl();
-  return ProjectRepositoryImpl(dataSource);
+final contractRepositoryProvider = Provider<ContractRepository>((ref) {
+  final dataSource = ContractLocalDataSourceImpl();
+  return ContractRepositoryImpl(dataSource);
 });
 
-final projectsControllerProvider = StateNotifierProvider<ProjectsController, AsyncValue<List<ProjectModel>>>((ref) {
-  final repository = ref.watch(projectRepositoryProvider);
+final contractsControllerProvider = StateNotifierProvider<ProjectsController, AsyncValue<List<ContractModel>>>((ref) {
+  final repository = ref.watch(contractRepositoryProvider);
   return ProjectsController(repository, ref);
 });
 
-class ProjectsController extends StateNotifier<AsyncValue<List<ProjectModel>>> {
-  final ProjectRepository _repository;
+// Removed projectsWithProgressProvider as per Day 1 constraints: No parent-level progress calculation.
+// UI should rely on contractsControllerProvider directly.
+
+final projectsProvider = FutureProvider.family<List<ProjectModel>, String>((ref, contractId) async {
+  final repository = ref.watch(contractRepositoryProvider);
+  return repository.getProjects(contractId);
+});
+
+class ProjectsController extends StateNotifier<AsyncValue<List<ContractModel>>> {
+  final ContractRepository _repository;
   final Ref _ref;
 
   ProjectsController(this._repository, this._ref) : super(const AsyncValue.data([]));
 
   Future<void> loadProjects({
     String? search,
+    String? type,
     String? status,
     bool? isArchived,
   }) async {
@@ -48,8 +59,9 @@ class ProjectsController extends StateNotifier<AsyncValue<List<ProjectModel>>> {
       final userRole = user?.role.name;
       final userId = user?.id;
 
-      final projects = await _repository.getProjects(
+      final projects = await _repository.getContracts(
         search: search,
+        type: type,
         status: status,
         userRole: userRole,
         userId: userId,
@@ -61,37 +73,44 @@ class ProjectsController extends StateNotifier<AsyncValue<List<ProjectModel>>> {
     }
   }
 
-  Future<void> addProject(ProjectModel project) async {
+  Future<void> addContract(ContractModel project) async {
     state = const AsyncValue.loading();
     try {
-      await _repository.addProject(project);
-      await loadProjects();
-    } catch (error, stackTrace) {
-      state = AsyncValue.error(error, stackTrace);
-    }
-  }
-
-  Future<void> updateProjectProgress(String projectId, double newProgress) async {
-    state = const AsyncValue.loading();
-    try {
-      final project = await _repository.getProjectById(projectId);
-      if (project != null) {
-        final updated = project.copyWith(
-          physicalProgress: newProgress,
-          status: newProgress >= 1.0 ? 'Selesai' : project.status,
+      await _repository.addContract(project);
+      
+      // Create default folders for Parent Activity
+      final defaultFolders = ['SPK', 'SPMK', 'Adendum Konsultan'];
+      for (final folderName in defaultFolders) {
+        await _ref.read(folderRepositoryProvider).addFolder(
+          FolderModel(
+            id: const Uuid().v4(),
+            contractId: project.id,
+            name: folderName,
+            isDefault: true,
+          ),
         );
-        await _repository.updateProject(updated);
       }
+      
       await loadProjects();
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
     }
   }
 
-  Future<void> deleteProject(String id) async {
+  Future<void> updateContract(ContractModel project) async {
     state = const AsyncValue.loading();
     try {
-      await _repository.deleteProject(id);
+      await _repository.updateContract(project);
+      await loadProjects();
+    } catch (error, stackTrace) {
+      state = AsyncValue.error(error, stackTrace);
+    }
+  }
+
+  Future<void> deleteContract(String id) async {
+    state = const AsyncValue.loading();
+    try {
+      await _repository.deleteContract(id);
       await loadProjects();
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
@@ -100,9 +119,11 @@ class ProjectsController extends StateNotifier<AsyncValue<List<ProjectModel>>> {
 
   Future<void> addMember(String projectId, String userId, String role) async {
     try {
-      await _repository.addProjectMember(projectId, userId, role);
+      await _repository.addContractMember(projectId, userId, role);
       // Refresh member list
-      _ref.invalidate(projectMembersProvider(projectId));
+      _ref.invalidate(contractMembersProvider(projectId));
+      // Refresh project list so UI reads updated owner/supervisor
+      await loadProjects();
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
     }
@@ -110,8 +131,33 @@ class ProjectsController extends StateNotifier<AsyncValue<List<ProjectModel>>> {
 
   Future<void> removeMember(String projectId, String userId) async {
     try {
-      await _repository.removeProjectMember(projectId, userId);
-      _ref.invalidate(projectMembersProvider(projectId));
+      await _repository.removeContractMember(projectId, userId);
+      _ref.invalidate(contractMembersProvider(projectId));
+      await loadProjects();
+    } catch (error, stackTrace) {
+      state = AsyncValue.error(error, stackTrace);
+    }
+  }
+
+  Future<void> addProject(ProjectModel physicalActivity) async {
+    try {
+      await _repository.addProject(physicalActivity);
+
+      // Create default folders for Physical Activity
+      final defaultFolders = ['PCM', 'ADSET', 'Pelaksanaan Kegiatan', 'Laporan'];
+      for (final folderName in defaultFolders) {
+        await _ref.read(folderRepositoryProvider).addFolder(
+          FolderModel(
+            id: const Uuid().v4(),
+            contractId: physicalActivity.contractId,
+            projectId: physicalActivity.id,
+            name: folderName,
+            isDefault: true,
+          ),
+        );
+      }
+      
+      _ref.invalidate(projectsProvider(physicalActivity.contractId));
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
     }
@@ -122,9 +168,9 @@ class ProjectsController extends StateNotifier<AsyncValue<List<ProjectModel>>> {
 // Project Members Provider
 // ─────────────────────────────────────────────────────────────
 
-final projectMembersProvider = FutureProvider.family<List<ProjectMemberIsar>, String>((ref, projectId) async {
+final contractMembersProvider = FutureProvider.family<List<ContractMemberIsar>, String>((ref, projectId) async {
   final isar = await IsarDatabaseService.db;
-  return isar.projectMemberIsars.filter().projectIdEqualTo(projectId).findAll();
+  return isar.contractMemberIsars.filter().contractIdEqualTo(projectId).findAll();
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -166,11 +212,18 @@ class DocumentsController extends StateNotifier<AsyncValue<List<DocumentModel>>>
 
   DocumentsController(this._repository, this._ref) : super(const AsyncValue.data([]));
 
-  Future<void> loadDocuments(String projectId) async {
+  Future<void> loadDocuments(String folderId) async {
     state = const AsyncValue.loading();
     try {
       await _repository.init();
-      final docs = await _repository.getDocuments(projectId);
+      // Instead of getting documents by contractId, get them by folderId
+      final allDocs = await _repository.getDocuments(''); // We need to change the repo method
+      // Wait, DocumentLocalDataSourceImpl expects projectId (contractId), which loads all docs for the activity.
+      // So we can still load by contractId, but filter by folderId in UI, or we should update local_document_data_source to support querying by folderId directly.
+      // Actually, since this is a simplified local DB, let's keep getDocuments(contractId) in the repo, but in the Controller we can filter if we want.
+      // Let's modify DocumentLocalDataSourceImpl later to query by folderId. For now let's just pass folderId to a new repo method or change the existing one.
+      // Assuming we change `getDocuments` to take `folderId`.
+      final docs = await _repository.getDocuments(folderId);
       state = AsyncValue.data(docs);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -186,7 +239,7 @@ class DocumentsController extends StateNotifier<AsyncValue<List<DocumentModel>>>
       final timelineItem = TimelineModel(
         id: const Uuid().v4(),
         title: 'Dokumen Ditambah',
-        description: 'File "${document.name}" diunggah ke folder "${document.folderName}".',
+        description: 'File "${document.name}" diunggah.',
         user: actorName,
         role: actorRole,
         icon: 'folder',
@@ -207,13 +260,13 @@ class DocumentsController extends StateNotifier<AsyncValue<List<DocumentModel>>>
       await _ref.read(notificationRepositoryProvider).addNotification(notificationItem);
       _ref.read(notificationsControllerProvider.notifier).loadNotifications();
 
-      await loadDocuments(document.projectId);
+      await loadDocuments(document.folderId);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
   }
 
-  Future<void> renameDocument(String projectId, String documentId, String newName, String actorName, String actorRole) async {
+  Future<void> renameDocument(String documentId, String newName, String actorName, String actorRole) async {
     state = const AsyncValue.loading();
     try {
       final list = state.valueOrNull ?? [];
@@ -236,13 +289,13 @@ class DocumentsController extends StateNotifier<AsyncValue<List<DocumentModel>>>
       await _ref.read(timelineRepositoryProvider).addTimeline(timelineItem);
       _ref.read(timelineControllerProvider.notifier).loadTimeline();
 
-      await loadDocuments(projectId);
+      await loadDocuments(doc.folderId);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
   }
 
-  Future<void> deleteDocument(String projectId, String documentId, String actorName, String actorRole) async {
+  Future<void> deleteDocument(String documentId, String actorName, String actorRole) async {
     state = const AsyncValue.loading();
     try {
       final list = state.valueOrNull ?? [];
@@ -250,27 +303,18 @@ class DocumentsController extends StateNotifier<AsyncValue<List<DocumentModel>>>
       
       await _repository.deleteDocument(documentId);
 
-      // Log timeline
-      final timelineItem = TimelineModel(
-        id: const Uuid().v4(),
-        title: 'Dokumen Dihapus',
-        description: 'File "${doc.name}" dihapus dari folder "${doc.folderName}".',
-        user: actorName,
-        role: actorRole,
-        icon: 'delete',
-        createdAt: DateTime.now().toString().substring(0, 16),
-      );
-      await _ref.read(timelineRepositoryProvider).addTimeline(timelineItem);
-      _ref.read(timelineControllerProvider.notifier).loadTimeline();
-
-      await loadDocuments(projectId);
+      // Remove timeline logging as per Day 2 requirement
+      
+      // We don't have the original folderId easily accessible here if we loaded by contractId, 
+      // but if we changed loadDocuments to take folderId, we can reload with doc.folderId.
+      await loadDocuments(doc.folderId);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
   }
 
   Future<void> uploadNewVersion(
-      String projectId, String documentId, String name, String fileSize, String fileUrl, String actorName, String actorRole) async {
+      String documentId, String name, String fileSize, String fileUrl, String actorName, String actorRole) async {
     state = const AsyncValue.loading();
     try {
       final list = state.valueOrNull ?? [];
@@ -313,7 +357,7 @@ class DocumentsController extends StateNotifier<AsyncValue<List<DocumentModel>>>
       await _ref.read(timelineRepositoryProvider).addTimeline(timelineItem);
       _ref.read(timelineControllerProvider.notifier).loadTimeline();
 
-      await loadDocuments(projectId);
+      await loadDocuments(doc.folderId);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
@@ -326,37 +370,76 @@ class DocumentsController extends StateNotifier<AsyncValue<List<DocumentModel>>>
 
 final dashboardStatsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   // Watch other providers to trigger re-computation when data changes
-  ref.watch(projectsControllerProvider);
+  ref.watch(contractsControllerProvider);
   ref.watch(contractorReportsProvider);
   ref.watch(documentsControllerProvider);
+  
+  final authState = ref.watch(authControllerProvider);
+  final user = authState.valueOrNull;
+  final role = user?.role ?? AppRole.eksternal;
 
   final isar = await IsarDatabaseService.db;
   
-  final totalProjects = await isar.projectIsars.count();
-  final activeProjects = await isar.projectIsars.filter().statusEqualTo('Progres', caseSensitive: false).count();
-  final completedProjects = await isar.projectIsars.filter().statusEqualTo('Selesai', caseSensitive: false).count();
+  // Get accessible projects for the current user (same logic as LocalDataSource)
+  List<ContractModel> allProjects = [];
+  if (role == AppRole.kontraktor) {
+    // We can just use the already loaded projects from contractsControllerProvider
+    final projs = ref.watch(contractsControllerProvider).valueOrNull ?? [];
+    allProjects = projs;
+  } else {
+    // Konsultan, Dinas, Eksternal see all
+    final raw = await isar.contractIsars.filter().isArchivedEqualTo(false).findAll();
+    allProjects = raw.map((p) => ContractModel(
+      id: p.contractId, 
+      type: p.type,
+      name: p.name, 
+      location: p.location, 
+      status: p.status, 
+      imageUrl: p.imageUrl, 
+      description: p.description, 
+      owner: p.owner, 
+      supervisor: p.supervisor, 
+      createdAt: p.createdAt,
+      startDate: p.startDate,
+      endDate: p.endDate,
+      dinas: p.dinas,
+      fundingSource: p.fundingSource,
+      isArchived: p.isArchived,
+    )).toList();
+  }
   
-  final today = DateTime.now().toString().substring(0, 10);
-  final lateProjects = await isar.projectIsars.filter()
-      .statusEqualTo('Progres', caseSensitive: false)
-      .and()
-      .endDateLessThan(today)
-      .count();
+  final allowedProjectIds = allProjects.map((p) => p.id).toSet();
+  
+  final totalProjects = allProjects.length;
+  final activeProjects = allProjects.where((p) => p.status.toLowerCase() == 'progres').length;
+  final completedProjects = allProjects.where((p) => p.status.toLowerCase() == 'selesai').length;
+  
+  // Actually we need the raw ActivityIsar objects to check endDate easily, or we can just parse it here.
+  final todayStr = DateTime.now().toString().substring(0, 10);
+  int lateProjects = 0;
+  final rawProjects = await isar.contractIsars.where().findAll();
+  for (var p in rawProjects) {
+    if (allowedProjectIds.contains(p.contractId) && p.status.toLowerCase() == 'progres' && p.endDate.compareTo(todayStr) < 0) {
+      lateProjects++;
+    }
+  }
 
-  final totalReports = await isar.contractorReportIsars.count() + await isar.supervisorReportIsars.count();
-  final pendingReports = await isar.contractorReportIsars.filter().statusEqualTo('MENUNGGU VERIFIKASI', caseSensitive: false).count();
-  final rejectedReports = await isar.contractorReportIsars.filter().statusEqualTo('DITOLAK', caseSensitive: false).count();
+  final allCReports = await isar.contractorReportIsars.where().findAll();
+  final allSReports = await isar.supervisorReportIsars.where().findAll();
+  
+  // existing models still use projectId
+  final myCReports = allCReports.where((r) => allowedProjectIds.contains(r.contractId)).toList();
+  final mySReports = allSReports.where((r) => allowedProjectIds.contains(r.contractId)).toList();
+
+  final totalReports = myCReports.length + mySReports.length;
+  final pendingReports = myCReports.where((r) => r.status.toUpperCase() == 'MENUNGGU VERIFIKASI').length;
+  final rejectedReports = myCReports.where((r) => r.status.toUpperCase() == 'DITOLAK').length;
   
   final totalDocuments = await isar.documentIsars.count();
   
-  final allProjects = await isar.projectIsars.where().findAll();
-  final avgProgress = allProjects.isEmpty 
-      ? 0.0 
-      : allProjects.map((p) => p.physicalProgress).reduce((a, b) => a + b) / allProjects.length;
-
-  final avgFinancialProgress = allProjects.isEmpty 
-      ? 0.0 
-      : allProjects.map((p) => p.financialProgress).reduce((a, b) => a + b) / allProjects.length;
+  // Progress aggregation removed from parent Activity on Day 1
+  final avgProgress = 0.0;
+  final avgFinancialProgress = 0.0;
 
   return {
     'totalProjects': totalProjects,

@@ -20,7 +20,7 @@ class _PendingApprovalsScreenState extends ConsumerState<PendingApprovalsScreen>
     super.initState();
     Future.microtask(() {
       ref.read(contractorReportsProvider.notifier).loadReports();
-      ref.read(projectsControllerProvider.notifier).loadProjects();
+      ref.read(contractsControllerProvider.notifier).loadProjects();
     });
   }
 
@@ -255,14 +255,15 @@ class _PendingApprovalsScreenState extends ConsumerState<PendingApprovalsScreen>
     final user = authState.valueOrNull;
     final reviewerName = user?.name ?? 'Konsultan';
 
-    final projectsState = ref.watch(projectsControllerProvider);
+    final projectsState = ref.watch(contractsControllerProvider);
     final projects = projectsState.valueOrNull ?? [];
 
     final reportsState = ref.watch(contractorReportsProvider);
     final allReports = reportsState.valueOrNull ?? [];
     
-    // Filter pending reports
-    final pendingReports = allReports.where((r) => r.status == 'MENUNGGU VERIFIKASI').toList();
+    // Filter pending reports directly by status since old reports will be DIREVISI
+    final pendingReports = allReports.where((r) => r.status.toUpperCase() == 'MENUNGGU VERIFIKASI').toList();
+    pendingReports.sort((a, b) => '${b.date} ${b.time}'.compareTo('${a.date} ${a.time}')); // newest first
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F6FA),
@@ -296,18 +297,21 @@ class _PendingApprovalsScreenState extends ConsumerState<PendingApprovalsScreen>
                     final report = pendingReports[index];
                     final proj = projects.firstWhere(
                       (p) => p.id == report.projectId,
-                      orElse: () => ProjectModel(
+                      orElse: () => ContractModel(
                         id: report.projectId,
-                        name: 'Proyek Tidak Ditemukan',
+                        type: '',
+                        name: 'Kegiatan Tidak Ditemukan',
                         location: '',
                         status: '',
-                        physicalProgress: 0.0,
-                        financialProgress: 0.0,
                         imageUrl: '',
                         description: '',
                         owner: '',
                         supervisor: '',
                         createdAt: '',
+                        startDate: '',
+                        endDate: '',
+                        dinas: [],
+                        fundingSource: '',
                       ),
                     );
 

@@ -114,11 +114,34 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
     final database = await db;
     final raw = await database.userIsars.filter().userIdEqualTo(userId).findFirst();
     if (raw == null) throw Exception('User tidak ditemukan');
+
+    final oldName = raw.name;
+    final trimmedNew = newName.trim();
+
+    // 1. Update user name
     await database.writeTxn(() async {
-      raw.name = newName.trim();
+      raw.name = trimmedNew;
       await database.userIsars.put(raw);
     });
+
+    // 2. Cascade to all projects: update supervisor or owner field if they match oldName
+    final allProjects = await database.contractIsars.where().findAll();
+    for (final proj in allProjects) {
+      bool changed = false;
+      if (proj.supervisor == oldName) {
+        proj.supervisor = trimmedNew;
+        changed = true;
+      }
+      if (proj.owner == oldName) {
+        proj.owner = trimmedNew;
+        changed = true;
+      }
+      if (changed) {
+        await database.writeTxn(() => database.contractIsars.put(proj));
+      }
+    }
   }
+
 
   @override
   Future<void> changePassword(String userId, String currentPassword, String newPassword) async {
@@ -150,7 +173,6 @@ class AuthLocalDataSourceImpl implements AuthLocalDataSource {
       throw Exception('Username tidak ditemukan');
     }
     
-    print('DEBUG LOGIN: username=$username, typed=$password, hashed=$hashedPassword, db_password=${raw.password}');
     
     // Check password (allows hashed match, or plain-text fallback for existing DB contents)
     if (raw.password != hashedPassword && raw.password != password) {

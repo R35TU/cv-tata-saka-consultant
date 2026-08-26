@@ -19,37 +19,55 @@ class UserIsar {
 }
 
 @collection
-class ProjectIsar {
+class ContractIsar {
   Id id = Isar.autoIncrement;
 
   @Index(unique: true)
-  late String projectId;
+  late String contractId;
 
+  late String type; // "Pengawasan Teknis" | "Perencanaan Teknis"
   late String name;
   late String location;
   late String status; // "Progres" | "Selesai"
-  late double physicalProgress;
-  late double financialProgress;
   late String imageUrl;
   late String description;
-  late String owner;
-  late String supervisor;
+  late String owner; // Contractor for parent? Keep existing.
+  late String supervisor; // Consultant
   late String createdAt;
   late String startDate;
   late String endDate;
-  late String ownerDetail;
-  late String fundingSource;
+  late List<String> dinas; // Pemilik Proyek (Dinas) - previously ownerDetail
+  late String fundingSource; // Sumber Dana
 
   @Index()
   late bool isArchived;
 }
 
 @collection
-class ProjectMemberIsar {
+class ProjectIsar {
+  Id id = Isar.autoIncrement;
+
+  @Index(unique: true)
+  late String projectId;
+
+  @Index()
+  late String contractId;
+
+  late String name;
+  late String location;
+  late String contractor;
+  late String description;
+  late String status; // "Progres" | "Selesai"
+  late double physicalProgress;
+  late double financialProgress;
+}
+
+@collection
+class ContractMemberIsar {
   Id id = Isar.autoIncrement;
 
   @Index()
-  late String projectId;
+  late String contractId;
 
   @Index()
   late String userId;
@@ -58,11 +76,11 @@ class ProjectMemberIsar {
 }
 
 @collection
-class ProjectProgressIsar {
+class ContractProgressIsar {
   Id id = Isar.autoIncrement;
 
   @Index()
-  late String projectId;
+  late String contractId;
 
   late double physicalProgress;
   late double financialProgress;
@@ -88,9 +106,13 @@ class DocumentIsar {
   late String documentId;
 
   @Index()
-  late String projectId;
+  late String contractId;
 
-  late String folderName;
+  @Index()
+  late String? projectId;
+
+  @Index()
+  late String folderId;
   late String name;
   late String fileUrl;
   late String fileSize;
@@ -117,7 +139,7 @@ class ContractorReportIsar {
   late String reportId;
 
   @Index()
-  late String projectId;
+  late String contractId;
 
   late String date;
   late String time;
@@ -149,7 +171,7 @@ class SupervisorReportIsar {
   late String reportId;
 
   @Index()
-  late String projectId;
+  late String contractId;
 
   late String date;
   late String time;
@@ -173,7 +195,7 @@ class TimelineIsar {
   late String timelineId;
 
   @Index()
-  late String projectId; // can be empty string for global timeline
+  late String contractId; // can be empty string for global timeline
 
   late String title;
   late String description;
@@ -211,11 +233,28 @@ class PhotoDocumentationIsar {
 }
 
 @collection
-class ActivityHistoryIsar {
+class ContractHistoryIsar {
   Id id = Isar.autoIncrement;
 
   late String userId;
   late String action;
   late String details;
   late String timestamp;
+}
+
+@collection
+class FolderIsar {
+  Id id = Isar.autoIncrement;
+
+  @Index(unique: true)
+  late String folderId;
+
+  @Index()
+  late String contractId;
+
+  @Index()
+  late String? projectId; // Null if it belongs to parent Contract
+
+  late String name;
+  late bool isDefault; // True for system-generated folders
 }

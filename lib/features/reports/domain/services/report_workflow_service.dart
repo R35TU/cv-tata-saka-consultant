@@ -9,23 +9,31 @@ import '../../data/models/report_model.dart';
 
 class ReportWorkflowService {
   final ReportRepository reportRepository;
-  final ProjectRepository projectRepository;
+  final ContractRepository contractRepository;
   final TimelineRepository timelineRepository;
   final NotificationRepository notificationRepository;
 
   ReportWorkflowService({
     required this.reportRepository,
-    required this.projectRepository,
+    required this.contractRepository,
     required this.timelineRepository,
     required this.notificationRepository,
   });
 
   Future<void> submitContractorReport(ContractorReportModel report) async {
+    // Check if report already exists
+    final existingReports = await reportRepository.getAllContractorReports();
+    final exists = existingReports.any((r) => r.id == report.id);
+
     // Save report to data source
-    await reportRepository.addContractorReport(report);
+    if (exists) {
+      await reportRepository.updateContractorReport(report);
+    } else {
+      await reportRepository.addContractorReport(report);
+    }
 
     // Get project name
-    final project = await projectRepository.getProjectById(report.projectId);
+    final project = await contractRepository.getProjectById(report.projectId);
     final projectName = project?.name ?? 'Proyek';
 
     // Log to timeline
@@ -73,17 +81,16 @@ class ReportWorkflowService {
 
     await reportRepository.updateContractorReport(updatedReport);
 
-    // Update Project Progress
-    final project = await projectRepository.getProjectById(report.projectId);
+    // Update Project Progress (temporarily disabled for Day 1)
+    final project = await contractRepository.getProjectById(report.projectId);
     if (project != null) {
-      final newPhysicalProgress = (project.physicalProgress + report.todayProgress).clamp(0.0, 1.0);
-      final newStatus = newPhysicalProgress >= 1.0 ? 'Selesai' : project.status;
+      final newPhysicalProgress = report.todayProgress; // Mock progress for timeline
+      final newStatus = project.status;
       
       final updatedProject = project.copyWith(
-        physicalProgress: newPhysicalProgress,
         status: newStatus,
       );
-      await projectRepository.updateProject(updatedProject);
+      await contractRepository.updateProject(updatedProject);
 
       // Log to timeline
       final timelineItem = TimelineModel(
@@ -132,7 +139,7 @@ class ReportWorkflowService {
 
     await reportRepository.updateContractorReport(updatedReport);
 
-    final project = await projectRepository.getProjectById(report.projectId);
+    final project = await contractRepository.getProjectById(report.projectId);
     final projectName = project?.name ?? 'Proyek';
 
     // Log to timeline
@@ -159,10 +166,21 @@ class ReportWorkflowService {
     await notificationRepository.addNotification(notificationItem);
   }
 
+  Future<void> markContractorReportAsRevised(String reportId) async {
+    final reports = await reportRepository.getAllContractorReports();
+    final report = reports.firstWhere((r) => r.id == reportId);
+    
+    final updatedReport = report.copyWith(
+      status: 'DIREVISI',
+    );
+
+    await reportRepository.updateContractorReport(updatedReport);
+  }
+
   Future<void> submitSupervisorReport(SupervisorReportModel report) async {
     await reportRepository.addSupervisorReport(report);
 
-    final project = await projectRepository.getProjectById(report.projectId);
+    final project = await contractRepository.getProjectById(report.projectId);
     final projectName = project?.name ?? 'Proyek';
 
     // Log to timeline

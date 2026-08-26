@@ -38,28 +38,28 @@ class _MenuConfig {
       DrawerMenuItem(id: 'dashboard', label: 'Dashboard', icon: Icons.space_dashboard_outlined, activeIcon: Icons.space_dashboard, roles: _all),
 
       // ── KONSULTAN
-      DrawerMenuItem(id: 'projects', label: 'Data Proyek', icon: Icons.folder_outlined, activeIcon: Icons.folder, roles: {AppRole.konsultan}),
-      DrawerMenuItem(id: 'admin_project', label: 'Administrasi Proyek', icon: Icons.admin_panel_settings_outlined, activeIcon: Icons.admin_panel_settings, roles: {AppRole.konsultan}),
+      DrawerMenuItem(id: 'projects', label: 'Data Kontrak', icon: Icons.folder_outlined, activeIcon: Icons.folder, roles: {AppRole.konsultan}),
+      DrawerMenuItem(id: 'admin_project', label: 'Administrasi Kontrak', icon: Icons.admin_panel_settings_outlined, activeIcon: Icons.admin_panel_settings, roles: {AppRole.konsultan}),
       DrawerMenuItem(id: 'laporan_kontraktor', label: 'Laporan Kontraktor', icon: Icons.assignment_outlined, activeIcon: Icons.assignment, roles: {AppRole.konsultan}),
       DrawerMenuItem(id: 'laporan_pengawasan', label: 'Laporan Pengawasan', icon: Icons.fact_check_outlined, activeIcon: Icons.fact_check, roles: {AppRole.konsultan}),
       DrawerMenuItem(id: 'timeline', label: 'Timeline', icon: Icons.timeline_outlined, activeIcon: Icons.timeline, roles: {AppRole.konsultan}),
       DrawerMenuItem(id: 'progress_monitoring', label: 'Progress Monitoring', icon: Icons.bar_chart_outlined, activeIcon: Icons.bar_chart, roles: {AppRole.konsultan}),
-      DrawerMenuItem(id: 'rekap_laporan', label: 'Rekap Laporan', icon: Icons.summarize_outlined, activeIcon: Icons.summarize, roles: {AppRole.konsultan}),
+
       DrawerMenuItem(id: 'statistik', label: 'Statistik', icon: Icons.pie_chart_outline, activeIcon: Icons.pie_chart, roles: {AppRole.konsultan}),
       DrawerMenuItem(id: 'manajemen_user', label: 'Manajemen User', icon: Icons.group_outlined, activeIcon: Icons.group, roles: {AppRole.konsultan}),
       DrawerMenuItem(id: 'hak_akses', label: 'Hak Akses', icon: Icons.lock_outline, activeIcon: Icons.lock, roles: {AppRole.konsultan}),
       DrawerMenuItem(id: 'kelola_akun', label: 'Kelola Akun', icon: Icons.manage_accounts_outlined, activeIcon: Icons.manage_accounts, roles: {AppRole.konsultan}),
 
       // ── KONTRAKTOR
-      DrawerMenuItem(id: 'projects', label: 'Proyek Saya', icon: Icons.folder_outlined, activeIcon: Icons.folder, roles: {AppRole.kontraktor}),
+      DrawerMenuItem(id: 'projects', label: 'Kontrak Saya', icon: Icons.folder_outlined, activeIcon: Icons.folder, roles: {AppRole.kontraktor}),
       DrawerMenuItem(id: 'laporan', label: 'Input Laporan Harian', icon: Icons.assignment_outlined, activeIcon: Icons.assignment, roles: {AppRole.kontraktor}),
       DrawerMenuItem(id: 'riwayat_laporan', label: 'Riwayat Laporan', icon: Icons.history_outlined, activeIcon: Icons.history, roles: {AppRole.kontraktor}),
       DrawerMenuItem(id: 'timeline', label: 'Timeline', icon: Icons.timeline_outlined, activeIcon: Icons.timeline, roles: {AppRole.kontraktor}),
-      DrawerMenuItem(id: 'progress_project', label: 'Progress Proyek', icon: Icons.bar_chart_outlined, activeIcon: Icons.bar_chart, roles: {AppRole.kontraktor}),
+      DrawerMenuItem(id: 'progress_project', label: 'Progress Kontrak', icon: Icons.bar_chart_outlined, activeIcon: Icons.bar_chart, roles: {AppRole.kontraktor}),
       DrawerMenuItem(id: 'administrasi', label: 'Administrasi', icon: Icons.admin_panel_settings_outlined, activeIcon: Icons.admin_panel_settings, roles: {AppRole.kontraktor}),
 
       // ── DINAS
-      DrawerMenuItem(id: 'projects', label: 'Monitoring Proyek', icon: Icons.folder_outlined, activeIcon: Icons.folder, roles: {AppRole.dinas}),
+      DrawerMenuItem(id: 'projects', label: 'Monitoring Kontrak', icon: Icons.folder_outlined, activeIcon: Icons.folder, roles: {AppRole.dinas}),
       DrawerMenuItem(id: 'progress', label: 'Progress', icon: Icons.bar_chart_outlined, activeIcon: Icons.bar_chart, roles: {AppRole.dinas}),
       DrawerMenuItem(id: 'timeline', label: 'Timeline', icon: Icons.timeline_outlined, activeIcon: Icons.timeline, roles: {AppRole.dinas}),
       DrawerMenuItem(id: 'laporan', label: 'Laporan', icon: Icons.assignment_outlined, activeIcon: Icons.assignment, roles: {AppRole.dinas}),
@@ -67,7 +67,7 @@ class _MenuConfig {
       DrawerMenuItem(id: 'dokumentasi', label: 'Dokumentasi', icon: Icons.photo_library_outlined, activeIcon: Icons.photo_library, roles: {AppRole.dinas}),
 
       // ── EKSTERNAL
-      DrawerMenuItem(id: 'projects', label: 'Proyek', icon: Icons.folder_outlined, activeIcon: Icons.folder, roles: {AppRole.eksternal}),
+      DrawerMenuItem(id: 'projects', label: 'Kontrak', icon: Icons.folder_outlined, activeIcon: Icons.folder, roles: {AppRole.eksternal}),
       DrawerMenuItem(id: 'progress', label: 'Progress', icon: Icons.bar_chart_outlined, activeIcon: Icons.bar_chart, roles: {AppRole.eksternal}),
       DrawerMenuItem(id: 'timeline', label: 'Timeline', icon: Icons.timeline_outlined, activeIcon: Icons.timeline, roles: {AppRole.eksternal}),
       DrawerMenuItem(id: 'dokumentasi', label: 'Dokumentasi', icon: Icons.photo_library_outlined, activeIcon: Icons.photo_library, roles: {AppRole.eksternal}),

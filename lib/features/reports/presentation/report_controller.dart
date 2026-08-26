@@ -14,13 +14,13 @@ final reportRepositoryProvider = Provider<ReportRepository>((ref) {
 
 final reportWorkflowServiceProvider = Provider<ReportWorkflowService>((ref) {
   final reportRepository = ref.watch(reportRepositoryProvider);
-  final projectRepository = ref.watch(projectRepositoryProvider);
+  final contractRepository = ref.watch(contractRepositoryProvider);
   final timelineRepository = ref.watch(timelineRepositoryProvider);
   final notificationRepository = ref.watch(notificationRepositoryProvider);
 
   return ReportWorkflowService(
     reportRepository: reportRepository,
-    projectRepository: projectRepository,
+    contractRepository: contractRepository,
     timelineRepository: timelineRepository,
     notificationRepository: notificationRepository,
   );
@@ -57,6 +57,15 @@ class ContractorReportsController extends StateNotifier<AsyncValue<List<Contract
     }
   }
 
+  Future<void> markAsRevised(String reportId) async {
+    try {
+      await _workflowService.markContractorReportAsRevised(reportId);
+      // Not calling loadReports here because it's usually called together with submitReport
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+
   Future<void> submitReport(ContractorReportModel report) async {
     state = const AsyncValue.loading();
     try {
@@ -75,7 +84,7 @@ class ContractorReportsController extends StateNotifier<AsyncValue<List<Contract
     try {
       await _workflowService.approveContractorReport(reportId, reviewerName);
       await loadReports();
-      _ref.read(projectsControllerProvider.notifier).loadProjects();
+      _ref.read(contractsControllerProvider.notifier).loadProjects();
       _ref.read(timelineControllerProvider.notifier).loadTimeline();
       _ref.read(notificationsControllerProvider.notifier).loadNotifications();
     } catch (e, st) {

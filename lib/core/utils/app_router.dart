@@ -5,6 +5,8 @@ import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/splash_screen.dart';
 import '../../features/auth/presentation/dashboard_screen.dart';
 import '../../features/projects/presentation/project_detail_screen.dart';
+import '../../features/projects/presentation/physical_activity_detail_screen.dart';
+import '../../features/projects/data/models/project_model.dart';
 import '../../features/notifications/presentation/notification_center_screen.dart';
 import '../../features/auth/presentation/auth_controller.dart';
 
@@ -69,7 +71,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/projects/:projectId',
         builder: (context, state) {
           final projectId = state.pathParameters['projectId'] ?? '';
-          return ProjectDetailScreen(projectId: projectId);
+          return ContractDetailScreen(contractId: projectId);
+        },
+      ),
+      GoRoute(
+        path: '/physical_activities/:activityId',
+        builder: (context, state) {
+          final project = state.extra as ProjectModel?;
+          if (project == null) {
+            return const Scaffold(body: Center(child: Text('Error: Physical Activity not found in navigation state')));
+          }
+          return ProjectDetailScreen(activity: project);
         },
       ),
       GoRoute(

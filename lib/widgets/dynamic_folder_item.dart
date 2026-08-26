@@ -9,14 +9,21 @@ class DynamicFolderItem extends StatefulWidget {
   final VoidCallback? onUploadTap;
   final Function(DocumentModel)? onDocumentTap;
 
+  final bool isDefaultFolder;
+  final VoidCallback? onEditFolderTap;
+  final VoidCallback? onDeleteFolderTap;
+
   const DynamicFolderItem({
     super.key,
     required this.folderName,
     required this.fileCount,
     required this.documents,
     this.showUploadButton = false,
+    this.isDefaultFolder = false,
     this.onUploadTap,
     this.onDocumentTap,
+    this.onEditFolderTap,
+    this.onDeleteFolderTap,
   });
 
   @override
@@ -25,6 +32,7 @@ class DynamicFolderItem extends StatefulWidget {
 
 class _DynamicFolderItemState extends State<DynamicFolderItem> {
   bool _isExpanded = false;
+  Offset? _tapPosition;
 
   IconData _getFileIcon(String filename) {
     if (filename.toLowerCase().endsWith('.pdf')) {
@@ -69,16 +77,68 @@ class _DynamicFolderItemState extends State<DynamicFolderItem> {
       child: Column(
         children: [
           // 1. Folder Header
-          GestureDetector(
-            onTap: () {
-              setState(() {
-                _isExpanded = !_isExpanded;
-              });
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
-              color: _isExpanded ? const Color(0xFFE5EAFF) : const Color(0xFFF5F6F8),
-              child: Row(
+          Material(
+            color: _isExpanded ? const Color(0xFFE5EAFF) : const Color(0xFFF5F6F8),
+            child: Listener(
+              onPointerDown: (event) => _tapPosition = event.position,
+              child: InkWell(
+                onTap: () {
+                  setState(() {
+                    _isExpanded = !_isExpanded;
+                  });
+                },
+                onLongPress: widget.showUploadButton ? () async {
+                  if (_tapPosition == null) return;
+                  final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+                  
+                  final value = await showMenu<String>(
+                    context: context,
+                    position: RelativeRect.fromRect(
+                      _tapPosition! & const Size(40, 40),
+                      Offset.zero & overlay.size,
+                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    items: [
+                      const PopupMenuItem(
+                        value: 'upload',
+                        child: Row(
+                          children: [
+                            Icon(Icons.upload_file_rounded, color: Color(0xFF001AFF), size: 18),
+                            SizedBox(width: 8),
+                            Text('Upload Dokumen', style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Color(0xFF1E1E1E))),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'edit',
+                        child: Row(
+                          children: [
+                            const Icon(Icons.edit_rounded, color: Color(0xFF1E1E1E), size: 18),
+                            const SizedBox(width: 8),
+                            const Text('Ubah Nama', style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Color(0xFF1E1E1E))),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            const Icon(Icons.delete_outline_rounded, color: Color(0xFFFF3D00), size: 18),
+                            const SizedBox(width: 8),
+                            const Text('Hapus Folder', style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Color(0xFFFF3D00))),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+
+                  if (value == 'upload') widget.onUploadTap?.call();
+                  if (value == 'edit') widget.onEditFolderTap?.call();
+                  if (value == 'delete') widget.onDeleteFolderTap?.call();
+                } : null,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+                  child: Row(
                 children: [
                   // Folder Icon
                   const Icon(
@@ -116,16 +176,6 @@ class _DynamicFolderItemState extends State<DynamicFolderItem> {
                     ),
                   ),
                   
-                  // Upload Icon Button if permitted
-                  if (widget.showUploadButton)
-                    IconButton(
-                      icon: const Icon(Icons.upload_file_rounded, color: Color(0xFF001AFF), size: 22),
-                      onPressed: widget.onUploadTap,
-                      constraints: const BoxConstraints(),
-                      padding: const EdgeInsets.all(8),
-                      tooltip: 'Upload Dokumen ke Folder Ini',
-                    ),
-                  
                   // Chevron icon
                   Icon(
                     _isExpanded ? Icons.keyboard_arrow_down_rounded : Icons.chevron_right_rounded,
@@ -135,6 +185,8 @@ class _DynamicFolderItemState extends State<DynamicFolderItem> {
                 ],
               ),
             ),
+          ),
+          ),
           ),
           
           // 2. Files List (Visible when expanded)

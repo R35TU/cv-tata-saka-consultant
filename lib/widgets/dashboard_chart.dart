@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/projects/data/models/project_model.dart';
 import '../core/enums/app_role.dart';
+import '../features/projects/presentation/project_controller.dart';
 
-class DashboardChart extends StatelessWidget {
-  final List<ProjectModel>? projects;
+class DashboardChart extends ConsumerStatefulWidget {
+  final List<ContractModel>? projects;
   final AppRole? userRole;
 
   const DashboardChart({
@@ -14,114 +17,52 @@ class DashboardChart extends StatelessWidget {
   });
 
   @override
+  ConsumerState<DashboardChart> createState() => _DashboardChartState();
+}
+
+class _DashboardChartState extends ConsumerState<DashboardChart> {
+  final PageController _pageController = PageController();
+  Timer? _timer;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 5), (Timer timer) {
+      if (widget.projects != null && widget.projects!.isNotEmpty) {
+        if (_currentPage < widget.projects!.length - 1) {
+          _currentPage++;
+        } else {
+          _currentPage = 0;
+        }
+        
+        if (_pageController.hasClients) {
+          _pageController.animateToPage(
+            _currentPage,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeIn,
+          );
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // If parameters are null, fallback to the original static layout (backwards compatibility)
-    final resolvedProjects = projects;
-    final resolvedRole = userRole;
+    final resolvedProjects = widget.projects;
 
-    if (resolvedProjects == null || resolvedRole == null) {
-      return Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16.0),
-          border: Border.all(
-            color: const Color(0xFFF0F1F5),
-            width: 1.5,
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x05000000),
-              blurRadius: 10,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Progres Proyek',
-              style: TextStyle(
-                fontSize: 14.5,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1E1E1E),
-                fontFamily: 'Inter',
-              ),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                // Donut Chart
-                Expanded(
-                  flex: 5,
-                  child: SizedBox(
-                    height: 140,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Positioned.fill(
-                          child: CustomPaint(
-                            painter: StaticDonutChartPainter(),
-                          ),
-                        ),
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Text(
-                              '67%',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF1E1E1E),
-                                fontFamily: 'Inter',
-                              ),
-                            ),
-                            Text(
-                              'Rata-rata Progres',
-                              style: TextStyle(
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF757575),
-                                fontFamily: 'Inter',
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  flex: 5,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildLegendItem(
-                        color: const Color(0xFF0055FF),
-                        label: 'Selesai',
-                        value: '(37,5%)',
-                      ),
-                      const SizedBox(height: 12),
-                      _buildLegendItem(
-                        color: const Color(0xFFAFD0FF),
-                        label: 'Proses',
-                        value: '(25,0%)',
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (resolvedProjects.isEmpty) {
+    if (resolvedProjects == null || resolvedProjects.isEmpty) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(20),
@@ -132,75 +73,68 @@ class DashboardChart extends StatelessWidget {
         ),
         child: const Center(
           child: Text(
-            'Belum ada data progres proyek',
+            'Belum ada data progres kontrak',
             style: TextStyle(fontFamily: 'Inter', fontSize: 13, color: Colors.grey),
           ),
         ),
       );
     }
 
-    if (resolvedRole == AppRole.dinas) {
-      final avgPhysical = resolvedProjects.map((p) => p.physicalProgress).reduce((a, b) => a + b) / resolvedProjects.length;
-      final avgSupervision = resolvedProjects.map((p) => p.financialProgress).reduce((a, b) => a + b) / resolvedProjects.length;
-
-      return Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16.0),
-          border: Border.all(color: const Color(0xFFF0F1F5), width: 1.5),
+    return Column(
+      children: [
+        SizedBox(
+          height: 250,
+          child: PageView.builder(
+            controller: _pageController,
+            onPageChanged: (int page) {
+              setState(() {
+                _currentPage = page;
+              });
+            },
+            itemCount: resolvedProjects.length,
+            itemBuilder: (context, index) {
+              return _buildContractCard(resolvedProjects[index]);
+            },
+          ),
         ),
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Progres Proyek (Monitoring Dinas)',
-              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Color(0xFF1E1E1E), fontFamily: 'Inter'),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(
+            resolvedProjects.length,
+            (index) => Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4.0),
+              width: _currentPage == index ? 24.0 : 8.0,
+              height: 8.0,
+              decoration: BoxDecoration(
+                color: _currentPage == index ? const Color(0xFF001AFF) : const Color(0xFFD9D9D9),
+                borderRadius: BorderRadius.circular(4.0),
+              ),
             ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildSingleCircularChart(
-                    title: 'Rata-rata Fisik',
-                    progress: avgPhysical,
-                    color: const Color(0xFF00C853),
-                    label: 'Fisik',
-                  ),
-                ),
-                Container(width: 1.5, height: 120, color: const Color(0xFFF0F1F5)),
-                Expanded(
-                  child: _buildSingleCircularChart(
-                    title: 'Rata-rata Pengawasan',
-                    progress: avgSupervision,
-                    color: const Color(0xFF0055FF),
-                    label: 'Pengawasan',
-                  ),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
-      );
-    }
+      ],
+    );
+  }
 
-    final isSupervision = resolvedRole == AppRole.konsultan;
-    final progressList = resolvedProjects.map((p) => isSupervision ? p.financialProgress : p.physicalProgress).toList();
-    final avgProgress = progressList.reduce((a, b) => a + b) / resolvedProjects.length;
-
-    final selesaiCount = resolvedProjects.where((p) => (isSupervision ? p.financialProgress : p.physicalProgress) >= 1.0).length;
-    final prosesCount = resolvedProjects.length - selesaiCount;
-
-    final selesaiPercent = (selesaiCount / resolvedProjects.length) * 100.0;
-    final prosesPercent = (prosesCount / resolvedProjects.length) * 100.0;
-
+  Widget _buildContractCard(ContractModel contract) {
+    final asyncProjects = ref.watch(projectsProvider(contract.id));
+    
+    final bool isPerencanaan = contract.type.toLowerCase().contains('perencanaan');
+    final Color bgColor = isPerencanaan 
+        ? const Color(0xFFE50012).withOpacity(0.04) 
+        : const Color(0xFF0033CC).withOpacity(0.04);
+    final Color borderColor = isPerencanaan 
+        ? const Color(0xFFE50012).withOpacity(0.15) 
+        : const Color(0xFF0033CC).withOpacity(0.15);
+        
     return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 2.0),
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: bgColor,
         borderRadius: BorderRadius.circular(16.0),
-        border: Border.all(color: const Color(0xFFF0F1F5), width: 1.5),
+        border: Border.all(color: borderColor, width: 1.5),
         boxShadow: const [
           BoxShadow(
             color: Color(0x05000000),
@@ -210,140 +144,98 @@ class DashboardChart extends StatelessWidget {
         ],
       ),
       padding: const EdgeInsets.all(20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            isSupervision ? 'Progres Pengawasan Proyek' : 'Progres Fisik Proyek',
-            style: const TextStyle(
-              fontSize: 14.5,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1E1E1E),
-              fontFamily: 'Inter',
-            ),
-          ),
-          const SizedBox(height: 24),
-          Row(
+      child: asyncProjects.when(
+        data: (projects) {
+          final totalProjects = projects.length;
+          double avgPhysical = 0.0;
+          if (totalProjects > 0) {
+            avgPhysical = projects.fold(0.0, (sum, p) => sum + p.physicalProgress) / totalProjects;
+          }
+          
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                flex: 5,
-                child: SizedBox(
-                  height: 140,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Positioned.fill(
-                        child: CustomPaint(
-                          painter: DonutChartPainter(
-                            selesaiRatio: selesaiCount / resolvedProjects.length,
-                            prosesRatio: prosesCount / resolvedProjects.length,
-                            colorSelesai: isSupervision ? const Color(0xFF0055FF) : const Color(0xFF00C853),
-                            colorProses: isSupervision ? const Color(0xFFAFD0FF) : const Color(0xFFA8E6CF),
-                          ),
-                        ),
-                      ),
-                      Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+              Text(
+                '${contract.name} (${contract.type})',
+                style: const TextStyle(
+                  fontSize: 14.5,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1E1E1E),
+                  fontFamily: 'Inter',
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 5,
+                    child: SizedBox(
+                      height: 140,
+                      child: Stack(
+                        alignment: Alignment.center,
                         children: [
-                          Text(
-                            '${(avgProgress * 100).toInt()}%',
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF1E1E1E),
-                              fontFamily: 'Inter',
+                          Positioned.fill(
+                            child: CustomPaint(
+                              painter: DonutChartPainter(
+                                selesaiRatio: avgPhysical,
+                                prosesRatio: 0.0,
+                                colorSelesai: const Color(0xFF0055FF),
+                                colorProses: Colors.transparent,
+                              ),
                             ),
                           ),
-                          const Text(
-                            'Rata-rata Progres',
-                            style: TextStyle(
-                              fontSize: 8.5,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF757575),
-                              fontFamily: 'Inter',
-                            ),
+                          Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                '${(avgPhysical * 100).toInt()}%',
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF1E1E1E),
+                                  fontFamily: 'Inter',
+                                ),
+                              ),
+                              const Text(
+                                'Progres',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF757575),
+                                  fontFamily: 'Inter',
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                flex: 5,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _buildLegendItem(
-                      color: isSupervision ? const Color(0xFF0055FF) : const Color(0xFF00C853),
-                      label: 'Selesai',
-                      value: '(${selesaiPercent.toStringAsFixed(1)}%)',
                     ),
-                    const SizedBox(height: 12),
-                    _buildLegendItem(
-                      color: isSupervision ? const Color(0xFFAFD0FF) : const Color(0xFFA8E6CF),
-                      label: 'Proses',
-                      value: '(${prosesPercent.toStringAsFixed(1)}%)',
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSingleCircularChart({
-    required String title,
-    required double progress,
-    required Color color,
-    required String label,
-  }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF757575), fontFamily: 'Inter'),
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          height: 90,
-          width: 90,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              SizedBox(
-                height: 90,
-                width: 90,
-                child: CircularProgressIndicator(
-                  value: progress,
-                  strokeWidth: 9,
-                  color: color,
-                  backgroundColor: color.withOpacity(0.12),
-                ),
-              ),
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    '${(progress * 100).toInt()}%',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF1E1E1E), fontFamily: 'Inter'),
                   ),
-                  Text(
-                    label,
-                    style: const TextStyle(fontSize: 8, color: Color(0xFF757575), fontFamily: 'Inter'),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 5,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildLegendItem(
+                          color: const Color(0xFF0055FF),
+                          label: 'Total Proyek',
+                          value: '$totalProjects',
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ],
-          ),
-        ),
-      ],
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, st) => Center(child: Text('Error: $err', style: const TextStyle(fontSize: 12))),
+      ),
     );
   }
 
@@ -353,21 +245,22 @@ class DashboardChart extends StatelessWidget {
     required String value,
   }) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Container(
-          width: 12,
-          height: 12,
+          width: 16,
+          height: 16,
           decoration: BoxDecoration(
             color: color,
             shape: BoxShape.circle,
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 10),
         Expanded(
           child: Text(
             label,
             style: const TextStyle(
-              fontSize: 11.5,
+              fontSize: 13.5,
               fontWeight: FontWeight.w600,
               color: Color(0xFF555555),
               fontFamily: 'Inter',
@@ -377,9 +270,9 @@ class DashboardChart extends StatelessWidget {
         Text(
           value,
           style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF757575),
+            fontSize: 15.5,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF1E1E1E),
             fontFamily: 'Inter',
           ),
         ),

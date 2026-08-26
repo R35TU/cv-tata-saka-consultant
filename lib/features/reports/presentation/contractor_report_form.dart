@@ -115,7 +115,7 @@ class _ContractorReportFormState extends ConsumerState<ContractorReportForm> {
           ];
 
     final report = ContractorReportModel(
-      id: widget.existingReport?.id ?? const Uuid().v4(),
+      id: const Uuid().v4(),
       projectId: _selectedProjectId!,
       date: DateTime.now().toString().substring(0, 10),
       time: DateTime.now().toString().substring(11, 16),
@@ -135,6 +135,11 @@ class _ContractorReportFormState extends ConsumerState<ContractorReportForm> {
       changeHistory: changeHistory,
     );
 
+    // If revising, mark the old report as DIREVISI
+    if (widget.existingReport != null) {
+      await ref.read(contractorReportsProvider.notifier).markAsRevised(widget.existingReport!.id);
+    }
+
     await ref.read(contractorReportsProvider.notifier).submitReport(report);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Laporan harian berhasil dikirim ke Pengawas.')));
@@ -144,7 +149,7 @@ class _ContractorReportFormState extends ConsumerState<ContractorReportForm> {
 
   @override
   Widget build(BuildContext context) {
-    final projectsState = ref.watch(projectsControllerProvider);
+    final projectsState = ref.watch(contractsControllerProvider);
     final projects = projectsState.valueOrNull ?? [];
     
     final user = ref.watch(authControllerProvider).valueOrNull;

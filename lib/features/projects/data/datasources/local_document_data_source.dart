@@ -29,11 +29,12 @@ class DocumentLocalDataSourceImpl implements DocumentLocalDataSource {
   @override
   Future<List<DocumentModel>> getDocuments(String projectId) async {
     final database = await db;
-    final list = await database.documentIsars.filter().projectIdEqualTo(projectId).findAll();
+    final list = await database.documentIsars.filter().contractIdEqualTo(projectId).findAll();
     return list.map((raw) => DocumentModel(
       id: raw.documentId,
+      contractId: raw.contractId,
       projectId: raw.projectId,
-      folderName: raw.folderName,
+      folderId: raw.folderId,
       name: raw.name,
       fileUrl: raw.fileUrl,
       fileSize: raw.fileSize,
@@ -58,8 +59,9 @@ class DocumentLocalDataSourceImpl implements DocumentLocalDataSource {
     await database.writeTxn(() async {
       final isarDoc = DocumentIsar()
         ..documentId = document.id
+        ..contractId = document.contractId
         ..projectId = document.projectId
-        ..folderName = document.folderName
+        ..folderId = document.folderId
         ..name = document.name
         ..fileUrl = document.fileUrl
         ..fileSize = document.fileSize
@@ -86,8 +88,9 @@ class DocumentLocalDataSourceImpl implements DocumentLocalDataSource {
     await database.writeTxn(() async {
       final isarDoc = (existing ?? DocumentIsar())
         ..documentId = document.id
+        ..contractId = document.contractId
         ..projectId = document.projectId
-        ..folderName = document.folderName
+        ..folderId = document.folderId
         ..name = document.name
         ..fileUrl = document.fileUrl
         ..fileSize = document.fileSize
