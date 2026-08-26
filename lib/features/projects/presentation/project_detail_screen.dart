@@ -7,7 +7,8 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/enums/app_role.dart';
 import '../../../widgets/dynamic_folder_item.dart';
 import '../../auth/presentation/auth_controller.dart';
-import '../../../backend/models/user_model.dart';
+import '../../../../backend/services/storage_service.dart';
+import '../../../../backend/models/user_model.dart';
 import '../data/models/project_model.dart';
 import '../data/models/document_model.dart';
 import 'project_controller.dart';
@@ -606,15 +607,34 @@ class _ProjectDetailScreenState extends ConsumerState<ProjectDetailScreen> with 
                   right: 10,
                   child: GestureDetector(
                     onTap: () async {
-                      final path = await AppImagePicker.pickImage(context);
-                      if (path != null && context.mounted) {
-                        final updated = p.copyWith(imageUrl: path);
-                        await ref.read(projectRepositoryProvider).updateProject(updated);
-                        ref.read(projectsControllerProvider.notifier).loadProjects();
-                        if (context.mounted) {
+                      final file = await AppImagePicker.pickImageFile(context);
+                      if (file != null && context.mounted) {
+                        try {
+                          // Show loading indicator
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Foto cover proyek berhasil diperbarui.')),
+                            const SnackBar(content: Text('Sedang mengunggah foto...')),
                           );
+                          
+                          // Upload to Cloudinary
+                          final storageService = StorageService();
+                          final uploadedUrl = await storageService.uploadXFile(file);
+                          
+                          if (uploadedUrl != null && context.mounted) {
+                            final updated = p.copyWith(imageUrl: uploadedUrl);
+                            await ref.read(projectRepositoryProvider).updateProject(updated);
+                            ref.read(projectsControllerProvider.notifier).loadProjects();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Foto cover proyek berhasil diperbarui.')),
+                              );
+                            }
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Gagal: $e'), backgroundColor: Colors.red),
+                            );
+                          }
                         }
                       }
                     },
@@ -1279,11 +1299,22 @@ class _KelolaTimSheetState extends ConsumerState<_KelolaTimSheet> {
                                       IconButton(
                                         icon: const Icon(Icons.person_remove_outlined, size: 18, color: Color(0xFFFF3D00)),
                                         onPressed: () async {
-                                          await ref.read(projectsControllerProvider.notifier).removeMember(widget.projectId, m.userId);
-                                          if (mounted) {
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              SnackBar(content: Text('${user?.name ?? 'Anggota'} dihapus dari tim.')),
-                                            );
+                                          try {
+                                            await ref.read(projectsControllerProvider.notifier).removeMember(widget.projectId, m.userId);
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(content: Text('${user?.name ?? 'Anggota'} dihapus dari tim.')),
+                                              );
+                                            }
+                                          } catch (e) {
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text('Gagal menghapus anggota: $e'),
+                                                  backgroundColor: Colors.red,
+                                                ),
+                                              );
+                                            }
                                           }
                                         },
                                         tooltip: 'Hapus dari tim',
@@ -1334,7 +1365,7 @@ class _KelolaTimSheetState extends ConsumerState<_KelolaTimSheet> {
                                     CircleAvatar(
                                       radius: 12,
                                       backgroundColor: _roleColor(u.role).withValues(alpha: 0.12),
-                                      child: Text(u.name[0].toUpperCase(), style: TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.bold, color: _roleColor(u.role))),
+                                      child: Text(u.name.isNotEmpty ? u.name[0].toUpperCase() : '?', style: TextStyle(fontFamily: 'Inter', fontSize: 10, fontWeight: FontWeight.bold, color: _roleColor(u.role))),
                                     ),
                                     const SizedBox(width: 8),
                                     Expanded(
@@ -1385,19 +1416,31 @@ class _KelolaTimSheetState extends ConsumerState<_KelolaTimSheet> {
                             onPressed: (_selectedUser == null || _isAdding) ? null : () async {
                               final addedName = _selectedUser!.name;
                               setState(() => _isAdding = true);
-                              await ref.read(projectsControllerProvider.notifier).addMember(
-                                widget.projectId,
-                                _selectedUser!.id,
-                                _selectedProjectRole,
-                              );
-                              setState(() {
-                                _isAdding = false;
-                                _selectedUser = null;
-                              });
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('$addedName ditambahkan ke tim.')),
+                              try {
+                                await ref.read(projectsControllerProvider.notifier).addMember(
+                                  widget.projectId,
+                                  _selectedUser!.id,
+                                  _selectedProjectRole,
                                 );
+                                setState(() {
+                                  _isAdding = false;
+                                  _selectedUser = null;
+                                });
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('$addedName ditambahkan ke tim.')),
+                                  );
+                                }
+                              } catch (e) {
+                                setState(() => _isAdding = false);
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Gagal menambahkan anggota: $e'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
                               }
                             },
                             icon: _isAdding

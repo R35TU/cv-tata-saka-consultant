@@ -22,7 +22,7 @@ class UserModel {
   factory UserModel.fromJson(Map<String, dynamic> json, String id, String email) {
     return UserModel(
       id: id,
-      name: json['nama'] ?? '',
+      name: json['nama'] ?? json['name'] ?? 'Unknown',
       email: email, // Auth email
       role: AppRole.fromString(json['peran'] ?? 'client'),
       perusahaanId: json['perusahaan_id']?.toString(),

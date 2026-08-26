@@ -49,13 +49,14 @@ final authControllerProvider = StateNotifierProvider<AuthController, AsyncValue<
 class AuthController extends StateNotifier<AsyncValue<UserModel?>> {
   final AuthService _service;
 
-  AuthController(this._service) : super(const AsyncValue.data(null));
+  AuthController(this._service) : super(const AsyncValue.loading()) {
+    initialize();
+  }
 
   Future<void> initialize() async {
     state = const AsyncValue.loading();
     try {
-      await Future.delayed(const Duration(milliseconds: 1000));
-      final user = _service.currentUser;
+      final user = await _service.initializeSession();
       state = AsyncValue.data(user);
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
@@ -66,7 +67,7 @@ class AuthController extends StateNotifier<AsyncValue<UserModel?>> {
     state = const AsyncValue.loading();
     try {
       // username field in UI is used as email for Firebase
-      final user = await _service.signIn(username, password);
+      final user = await _service.signIn(username, password, rememberMe: rememberMe);
       if (user == null) {
         throw Exception('Username/Email atau password salah');
       }

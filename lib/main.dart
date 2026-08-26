@@ -38,7 +38,7 @@ class MyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     return MaterialApp.router(
-      title: 'Tata Saka Consultant',
+      title: 'CV. Tata Saka Consultant',
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       theme: ThemeData(

@@ -8,9 +8,7 @@ import 'package:image_picker/image_picker.dart';
 class AppImagePicker {
   static final ImagePicker _picker = ImagePicker();
 
-  // ── Main entry point – shows a bottom-sheet (Galeri / Kamera) ──────────────
-  static Future<String?> pickImage(BuildContext context) async {
-    // Step 1: Let user pick SOURCE (gallery or camera). Sheet returns ImageSource.
+  static Future<XFile?> pickImageFile(BuildContext context) async {
     final ImageSource? source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: Colors.white,
@@ -20,17 +18,15 @@ class AppImagePicker {
       builder: (ctx) => const _SourceSheet(),
     );
 
-    if (source == null) return null;       // user cancelled
+    if (source == null) return null;
     if (!context.mounted) return null;
 
-    // Step 2: Sheet is fully closed → now open the actual picker
     try {
-      final XFile? file = await _picker.pickImage(
+      return await _picker.pickImage(
         source: source,
         imageQuality: 85,
         maxWidth: 1080,
       );
-      return file?.path;
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -39,6 +35,12 @@ class AppImagePicker {
       }
       return null;
     }
+  }
+
+  // ── Main entry point – shows a bottom-sheet (Galeri / Kamera) ──────────────
+  static Future<String?> pickImage(BuildContext context) async {
+    final file = await pickImageFile(context);
+    return file?.path;
   }
 
   // ── Direct gallery pick (no bottom-sheet) ──────────────────────────────────

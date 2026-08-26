@@ -41,15 +41,49 @@ class AuthService {
     });
   }
 
+  Future<UserModel?> initializeSession() async {
+    await fb_auth.FirebaseAuth.instance.authStateChanges().first;
+    final fbUser = fb_auth.FirebaseAuth.instance.currentUser;
+    if (fbUser != null) {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(fbUser.uid).get();
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        data['id'] = doc.id;
+        if (!data.containsKey('username')) data['username'] = fbUser.email ?? '';
+        if (!data.containsKey('password')) data['password'] = '';
+        if (!data.containsKey('phone')) data['phone'] = '';
+        _currentUser = UserModel.fromJson(data);
+      } else {
+        _currentUser = UserModel(
+          id: fbUser.uid,
+          name: fbUser.displayName ?? 'User',
+          username: fbUser.email ?? '',
+          password: '',
+          email: fbUser.email ?? '',
+          phone: '',
+          role: AppRole.eksternal,
+        );
+      }
+    } else {
+      _currentUser = null;
+    }
+    return _currentUser;
+  }
+
   Future<void> seedDefaultUser() async {
     // Seeding is now handled via Firebase Console / Firebase Auth dashboard
   }
 
-  Future<UserModel?> signIn(String email, String password) async {
+  Future<UserModel?> signIn(String email, String password, {bool rememberMe = false}) async {
     assert(email.isNotEmpty, 'Email tidak boleh kosong');
     assert(password.isNotEmpty, 'Password tidak boleh kosong');
 
     try {
+      try {
+        await fb_auth.FirebaseAuth.instance.setPersistence(
+            rememberMe ? fb_auth.Persistence.LOCAL : fb_auth.Persistence.SESSION);
+      } catch (_) {}
+
       final fb_auth.UserCredential creds = await fb_auth.FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,

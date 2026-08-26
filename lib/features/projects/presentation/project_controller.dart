@@ -3,7 +3,7 @@ import 'package:uuid/uuid.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../../core/database/hive_database_service.dart';
 import '../../../core/database/hive_models.dart';
-import '../../../core/enums/app_role.dart';
+
 import '../../auth/presentation/auth_controller.dart';
 import '../../reports/presentation/report_controller.dart';
 import '../../timeline/presentation/timeline_controller.dart';
@@ -17,6 +17,7 @@ import '../data/datasources/local_document_data_source.dart';
 import '../data/repositories/document_repository.dart';
 import '../data/models/document_model.dart';
 import '../../../backend/models/user_model.dart';
+import '../../../backend/repositories/user_repository.dart';
 
 final projectRepositoryProvider = Provider<ProjectRepository>((ref) {
   final dataSource = ProjectFirebaseDataSourceImpl();
@@ -105,6 +106,7 @@ class ProjectsController extends StateNotifier<AsyncValue<List<ProjectModel>>> {
       _ref.invalidate(projectMembersProvider(projectId));
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
+      rethrow;
     }
   }
 
@@ -114,6 +116,7 @@ class ProjectsController extends StateNotifier<AsyncValue<List<ProjectModel>>> {
       _ref.invalidate(projectMembersProvider(projectId));
     } catch (error, stackTrace) {
       state = AsyncValue.error(error, stackTrace);
+      rethrow;
     }
   }
 }
@@ -123,9 +126,8 @@ class ProjectsController extends StateNotifier<AsyncValue<List<ProjectModel>>> {
 // ─────────────────────────────────────────────────────────────
 
 final projectMembersProvider = FutureProvider.family<List<ProjectMemberHive>, String>((ref, projectId) async {
-  await HiveDatabaseService.initDb();
-  final box = Hive.box<ProjectMemberHive>('projectMembers');
-  return box.values.where((m) => m.projectId == projectId).toList();
+  final repository = ref.read(projectRepositoryProvider);
+  return await repository.getProjectMembers(projectId);
 });
 
 // ─────────────────────────────────────────────────────────────
@@ -133,17 +135,8 @@ final projectMembersProvider = FutureProvider.family<List<ProjectMemberHive>, St
 // ─────────────────────────────────────────────────────────────
 
 final allUsersProvider = FutureProvider<List<UserModel>>((ref) async {
-  await HiveDatabaseService.initDb();
-  final box = Hive.box<UserHive>('users');
-  final rawUsers = box.values.toList();
-  return rawUsers.map((u) => UserModel(
-    id: u.userId,
-    name: u.name,
-    email: u.email,
-    role: AppRole.fromString(u.role),
-    username: u.username,
-    nomorHp: u.phone,
-  )).toList();
+  final userRepository = UserRepository();
+  return await userRepository.getAll();
 });
 
 // ─────────────────────────────────────────────────────────────

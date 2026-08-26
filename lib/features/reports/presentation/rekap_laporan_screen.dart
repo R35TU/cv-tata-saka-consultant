@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../projects/presentation/project_controller.dart';
 import '../../projects/data/models/project_model.dart';
-import '../data/models/report_model.dart';
 import 'report_controller.dart';
 
 class RekapLaporanScreen extends ConsumerStatefulWidget {

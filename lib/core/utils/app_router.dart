@@ -45,8 +45,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           return '/login';
         }
       } else {
-        // If logged in, prevent accessing login and splash pages
-        if (isSplash || isLogin) {
+        // If logged in, prevent accessing login page
+        if (isLogin) {
           return '/dashboard';
         }
       }

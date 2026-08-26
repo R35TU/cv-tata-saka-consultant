@@ -15,8 +15,8 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _rememberMe = false;
-  final TextEditingController _usernameController = TextEditingController(text: 'konsultan');
-  final TextEditingController _passwordController = TextEditingController(text: '123456');
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   @override
   void dispose() {

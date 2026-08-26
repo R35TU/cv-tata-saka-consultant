@@ -225,7 +225,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               children: [
                 _buildInfoRow(Icons.person_outline, 'Nama Lengkap', user.name),
                 const Divider(height: 1, color: Color(0xFFF0F1F5), indent: 16, endIndent: 16),
-                _buildInfoRow(Icons.badge_outlined, 'Username', user.username ?? '-'),
+                _buildInfoRow(Icons.badge_outlined, 'Username', user.username),
                 const Divider(height: 1, color: Color(0xFFF0F1F5), indent: 16, endIndent: 16),
                 _buildInfoRow(Icons.admin_panel_settings_outlined, 'Role', user.role.label),
               ],
@@ -296,18 +296,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                         ? Image.network(
                                             url,
                                             width: 54, height: 54, fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => _buildProjectImagePlaceholder(roleColor),
+                                            errorBuilder: (_, _, _) => _buildProjectImagePlaceholder(roleColor),
                                           )
                                         : Image.file(
                                             File(url.replaceFirst('file://', '')),
                                             width: 54, height: 54, fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => _buildProjectImagePlaceholder(roleColor),
+                                            errorBuilder: (_, _, _) => _buildProjectImagePlaceholder(roleColor),
                                           );
                                   }
                                   return Image.network(
                                     url,
                                     width: 54, height: 54, fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => _buildProjectImagePlaceholder(roleColor),
+                                    errorBuilder: (_, _, _) => _buildProjectImagePlaceholder(roleColor),
                                   );
                                 }(),
                               ),

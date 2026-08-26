@@ -4,7 +4,9 @@ import '../models/report_model.dart';
 import 'base_repository.dart';
 
 class ReportRepository implements BaseRepository<ReportModel> {
-  final CollectionReference _collection = FirebaseFirestore.instance.collection('reports');
+  final CollectionReference _collection = FirebaseFirestore.instance.collection(
+    'reports',
+  );
 
   @override
   Future<List<ReportModel>> getAll() async {
@@ -22,7 +24,9 @@ class ReportRepository implements BaseRepository<ReportModel> {
   }
 
   Future<List<ReportModel>> getByProjectId(String projectId) async {
-    final snapshot = await _collection.where('proyek_id', isEqualTo: projectId).get();
+    final snapshot = await _collection
+        .where('proyek_id', isEqualTo: projectId)
+        .get();
     return snapshot.docs.map((doc) {
       return ReportModel.fromJson(doc.data() as Map<String, dynamic>, doc.id);
     }).toList();
@@ -47,7 +51,7 @@ class ReportRepository implements BaseRepository<ReportModel> {
       final docRef = _collection.doc(id.toString());
       final doc = await docRef.get();
       if (!doc.exists || doc.data() == null) return false;
-      
+
       // Mitigasi IDOR: Dapatkan ID User saat ini
       final currentUserId = FirebaseAuth.instance.currentUser?.uid;
       if (currentUserId == null) return false;

@@ -1,12 +1,10 @@
-import 'dart:convert';
-
 class ReportHistory {
   final String date;
   final String user;
   final String action; // e.g. "Dibuat", "Revisi", "Kirim Ulang"
   final String details;
 
-  const ReportHistory({
+  ReportHistory({
     required this.date,
     required this.user,
     required this.action,
@@ -53,7 +51,7 @@ class ContractorReportModel {
   final String revisionNotes;
   final List<ReportHistory> changeHistory;
 
-  const ContractorReportModel({
+  ContractorReportModel({
     required this.id,
     required this.projectId,
     required this.date,
@@ -189,7 +187,7 @@ class SupervisorReportModel {
   final List<String> photos;
   final List<String> attachments;
 
-  const SupervisorReportModel({
+  SupervisorReportModel({
     required this.id,
     required this.projectId,
     required this.date,
@@ -241,4 +239,6 @@ class SupervisorReportModel {
         'photos': photos,
         'attachments': attachments,
       };
+  
+  
 }
